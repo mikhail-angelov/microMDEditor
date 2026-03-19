@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { MicroMDEditor, Theme } from 'micro-md-editor';
+import { useState } from 'react';
+import { MicroMDEditor } from 'micro-md-editor';
 import './App.css';
+
+type Theme = 'light' | 'dark' | 'auto';
 
 function App() {
   const [markdown, setMarkdown] = useState(`# Welcome to Micro MD Editor
