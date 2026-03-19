@@ -6,6 +6,15 @@ import { Block, PluginResult } from "./types";
 import { getPlugin } from "./plugins";
 import { DecorationLayer } from "./DecorationLayer";
 import { getCaretOffset, placeCaretAtEnd, placeCaretAtOffset, detectType } from "./utils";
+import { 
+  getSelectionOffsets, 
+  restoreSelectionOffsets, 
+  isCaretAtStart, 
+  isCaretAtEnd,
+  createDeltaTransform,
+  applyTextMutation,
+  SelectionTransform
+} from "./selection";
 
 interface BlockWrapperProps {
   block: Block;
@@ -65,29 +74,22 @@ export function BlockWrapper({
         const newText = result.text;
         const offsetToUse = result.cursorOffset !== undefined ? result.cursorOffset : caretOffset;
         
-        // Update the text - use textContent for accurate whitespace
-        editableRef.current.textContent = newText;
+        // Create a selection transform based on cursor offset
+        const transform: SelectionTransform = offsetToUse !== undefined
+          ? () => ({ start: offsetToUse, end: offsetToUse })
+          : (oldStart, oldEnd) => {
+              // If no cursor offset provided, place at end
+              const textLength = newText.length;
+              return { start: textLength, end: textLength };
+            };
+        
+        // Use applyTextMutation helper which handles selection preservation
+        // and avoids unnecessary textContent rewrites
+        applyTextMutation(editableRef.current, newText, transform);
         lastTextRef.current = newText;
         
-        // Schedule cursor placement on next animation frame to ensure DOM is updated
-        if (offsetToUse !== undefined) {
-          requestAnimationFrame(() => {
-            if (editableRef.current) {
-              placeCaretAtOffset(editableRef.current, offsetToUse);
-            }
-            // Reset flag after cursor is placed
-            isApplyingPluginRef.current = false;
-          });
-        } else {
-          requestAnimationFrame(() => {
-            if (editableRef.current) {
-              placeCaretAtEnd(editableRef.current);
-            }
-            // Reset flag after cursor is placed
-            isApplyingPluginRef.current = false;
-          });
-        }
-
+        // Reset flag after mutation is applied
+        isApplyingPluginRef.current = false;
         onChange(block.id, newText);
       }
 
@@ -122,13 +124,10 @@ export function BlockWrapper({
       const result = plugin.normalize(text);
 
       if (result.text !== text) {
-        const sel = window.getSelection();
-        const caretPos = sel ? getCaretOffset(editableRef.current, sel) : text.length;
-
+        // Use applyTextMutation helper which handles selection preservation
+        const transform = createDeltaTransform(result.delta);
+        applyTextMutation(editableRef.current!, result.text, transform);
         text = result.text;
-        editableRef.current.textContent = result.text;
-        // Adjust cursor position by delta (how much the text changed)
-        placeCaretAtOffset(editableRef.current, caretPos + result.delta);
       }
     }
 
@@ -141,39 +140,40 @@ export function BlockWrapper({
     (e: React.KeyboardEvent) => {
       if (!editableRef.current) return;
 
-      const sel = window.getSelection();
-      if (!sel) return;
-
       const text = editableRef.current.textContent || "";
       const plugin = getPlugin(text, block.type);
-      const caretOffset = getCaretOffset(editableRef.current, sel);
+      
+      // Use logical selection helpers
+      const selectionSnapshot = getSelectionOffsets(editableRef.current);
 
       // Enter key
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
 
         if (plugin.onEnter) {
+          const sel = window.getSelection();
           const result = plugin.onEnter({
             text,
-            selection: sel,
+            selection: sel!,
             root: editableRef.current,
           });
 
-          applyPluginResult(result);
+          applyPluginResult(result, selectionSnapshot.start);
         } else {
           // Default split behavior
-          onSplit(block.id, text.slice(0, caretOffset), text.slice(caretOffset));
+          onSplit(block.id, text.slice(0, selectionSnapshot.start), text.slice(selectionSnapshot.start));
         }
         return;
       }
 
-      // Backspace at start
-      if (e.key === "Backspace" && caretOffset === 0 && sel.isCollapsed) {
+      // Backspace at start - use logical selection check
+      if (e.key === "Backspace" && isCaretAtStart(editableRef.current)) {
         // Check if plugin handles this
         if (plugin.onBackspace) {
+          const sel = window.getSelection();
           const result = plugin.onBackspace({
             text,
-            selection: sel,
+            selection: sel!,
             root: editableRef.current,
           });
 
@@ -196,14 +196,14 @@ export function BlockWrapper({
       }
 
       // Arrow up at start
-      if (e.key === "ArrowUp" && caretOffset === 0) {
+      if (e.key === "ArrowUp" && isCaretAtStart(editableRef.current)) {
         e.preventDefault();
         onFocusPrevious(block.id, true);
         return;
       }
 
       // Arrow down at end
-      if (e.key === "ArrowDown" && caretOffset === text.length) {
+      if (e.key === "ArrowDown" && isCaretAtEnd(editableRef.current)) {
         e.preventDefault();
         onFocusNext(block.id);
         return;

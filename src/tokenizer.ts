@@ -47,11 +47,20 @@ export function tokenize(text: string): Token[] {
       }
     }
 
-    // Inline code `text`
-    if (text[i] === "`" && !text.startsWith("```", i)) {
+    // Inline code `text` - handle triple backticks as text
+    if (text[i] === "`") {
+      // Check if this is triple backticks
+      if (text.startsWith("```", i)) {
+        // Triple backticks - treat as text, not inline code
+        // Add all three backticks to buffer
+        textBuffer += "```";
+        i += 3;
+        continue;
+      }
+      
       flushTextBuffer();
       const end = text.indexOf("`", i + 1);
-      if (end !== -1 && !text.startsWith("```", end)) {
+      if (end !== -1) {
         tokens.push({ type: "syntax", content: "`" });
         tokens.push({ type: "code", content: text.slice(i + 1, end) });
         tokens.push({ type: "syntax", content: "`" });

@@ -73,7 +73,7 @@ export const QuotePlugin: BlockPlugin = {
     const normalizedLines = lines.map((line, index) => {
       if (line.trim() === "") {
         // Empty line becomes "> " - adds 2 characters
-        if (index === 0) totalDelta += 2;
+        totalDelta += 2;
         return "> ";
       }
       
@@ -83,7 +83,7 @@ export const QuotePlugin: BlockPlugin = {
       }
       
       // Add "> " prefix - adds 2 characters
-      if (index === 0) totalDelta += 2;
+      totalDelta += 2;
       return `> ${line}`;
     });
     
@@ -140,7 +140,7 @@ export const ListPlugin: BlockPlugin = {
     const normalizedLines = lines.map((line, index) => {
       if (line.trim() === "") {
         // Empty line becomes "- " - adds 2 characters
-        if (index === 0) totalDelta += 2;
+        totalDelta += 2;
         return "- ";
       }
       
@@ -150,7 +150,7 @@ export const ListPlugin: BlockPlugin = {
       }
       
       // Add "- " prefix - adds 2 characters
-      if (index === 0) totalDelta += 2;
+      totalDelta += 2;
       return `- ${line}`;
     });
     
@@ -330,8 +330,13 @@ export function getPlugin(text: string, currentType?: string): BlockPlugin {
   // If we have a current type, try to find that plugin first
   if (currentType) {
     const currentPlugin = plugins.find((p) => p.type === currentType);
-    if (currentPlugin && currentPlugin.match(text)) {
-      return currentPlugin;
+    if (currentPlugin) {
+      // For sticky behavior, we should check if the current plugin still matches
+      // OR if we're in a "partial edit" state (e.g., removed ">" from quote but still want quote)
+      // For now, we'll use a simple approach: if current plugin matches, use it
+      if (currentPlugin.match(text)) {
+        return currentPlugin;
+      }
     }
   }
   
