@@ -5,8 +5,15 @@ import React, { useRef, useEffect, useCallback } from "react";
 import { Block, PluginResult } from "./types";
 import { getPlugin } from "./plugins";
 import { DecorationLayer } from "./DecorationLayer";
-import { placeCaretAtEnd, detectType } from "./utils";
-import { getSelectionOffsets, restoreSelectionOffsets } from "./selection";
+import { detectType } from "./utils";
+import {
+  getSelectionOffsets,
+  isCaretAtStart,
+  isCaretAtEnd,
+  createDeltaTransform,
+  applyTextMutation,
+  SelectionTransform,
+} from "./selection";
 
 interface BlockWrapperProps {
   block: Block;
@@ -19,7 +26,69 @@ interface BlockWrapperProps {
   registerRef: (id: string, ref: HTMLDivElement | null) => void;
 }
 
-type SelectionMapper = (start: number, end: number) => { start: number; end: number };
+type LineInfo = {
+  start: number;
+  end: number;
+  text: string;
+};
+
+function getLineAtOffset(text: string, offset: number): LineInfo {
+  const clamped = Math.max(0, Math.min(offset, text.length));
+  const start = text.lastIndexOf("\n", Math.max(0, clamped - 1)) + 1;
+  const nextNewline = text.indexOf("\n", clamped);
+  const end = nextNewline === -1 ? text.length : nextNewline;
+  return {
+    start,
+    end,
+    text: text.slice(start, end),
+  };
+}
+
+function removeCurrentLine(text: string, line: LineInfo): { text: string; cursorOffset: number } {
+  const hasPrev = line.start > 0;
+  const hasNext = line.end < text.length;
+
+  if (!hasPrev && !hasNext) {
+    return { text: "", cursorOffset: 0 };
+  }
+
+  if (!hasPrev) {
+    const nextStart = Math.min(text.length, line.end + 1);
+    return { text: text.slice(nextStart), cursorOffset: 0 };
+  }
+
+  if (!hasNext) {
+    return { text: text.slice(0, line.start - 1), cursorOffset: line.start - 1 };
+  }
+
+  return {
+    text: text.slice(0, line.start) + text.slice(line.end + 1),
+    cursorOffset: line.start,
+  };
+}
+
+function getMarkerOnlyBackspaceResult(text: string, caretOffset: number): PluginResult {
+  const line = getLineAtOffset(text, caretOffset);
+  const trimmedLine = line.text.trimEnd();
+
+  if (trimmedLine === "-" || trimmedLine === "*") {
+    const isCaretAtLineEnd = caretOffset >= line.start + line.text.length;
+    if (isCaretAtLineEnd) {
+      const next = removeCurrentLine(text, line);
+      return { type: "update", text: next.text, cursorOffset: next.cursorOffset };
+    }
+  }
+
+  if (/^\d+\.$/.test(trimmedLine)) {
+    const isCaretAtLineEnd = caretOffset >= line.start + line.text.length;
+    if (isCaretAtLineEnd) {
+      const next = removeCurrentLine(text, line);
+      return { type: "update", text: next.text, cursorOffset: next.cursorOffset };
+    }
+  }
+
+  return { type: "none" };
+}
 
 export function BlockWrapper({
   block,
@@ -42,64 +111,34 @@ export function BlockWrapper({
 
   useEffect(() => {
     if (!editableRef.current) return;
+
     if (editableRef.current.textContent !== block.raw) {
       editableRef.current.textContent = block.raw;
       lastTextRef.current = block.raw;
     }
-  }, [block.id, block.raw]);
-
-  const applyTextMutation = useCallback(
-    (
-      nextText: string,
-      mapSelection?: SelectionMapper,
-      explicitCursorOffset?: number,
-      useAnimationFrame: boolean = false
-    ) => {
-      if (!editableRef.current) return;
-
-      const root = editableRef.current;
-      const snapshot = getSelectionOffsets(root);
-      const restore = () => {
-        if (!editableRef.current) return;
-        if (explicitCursorOffset !== undefined) {
-          restoreSelectionOffsets(editableRef.current, explicitCursorOffset);
-          return;
-        }
-        if (snapshot.isInsideRoot) {
-          const mapped = mapSelection ? mapSelection(snapshot.start, snapshot.end) : snapshot;
-          restoreSelectionOffsets(editableRef.current, mapped.start, mapped.end);
-        } else {
-          placeCaretAtEnd(editableRef.current);
-        }
-      };
-
-      if (root.textContent !== nextText) {
-        root.textContent = nextText;
-      }
-      lastTextRef.current = nextText;
-
-      if (useAnimationFrame) {
-        requestAnimationFrame(restore);
-      } else {
-        restore();
-      }
-    },
-    []
-  );
+  }, [block.id]);
 
   const applyPluginResult = useCallback(
-    (result: PluginResult) => {
-      if (!editableRef.current) return;
-      if (result.type === "none") return;
+    (result: PluginResult, caretOffset?: number) => {
+      if (!editableRef.current || result.type === "none") return;
 
       isApplyingPluginRef.current = true;
 
       if (result.type === "update") {
         const newText = result.text;
-        applyTextMutation(newText, undefined, result.cursorOffset, true);
-        requestAnimationFrame(() => {
-          isApplyingPluginRef.current = false;
-        });
+        const offsetToUse = result.cursorOffset !== undefined ? result.cursorOffset : caretOffset;
+
+        const transform: SelectionTransform =
+          offsetToUse !== undefined
+            ? () => ({ start: offsetToUse, end: offsetToUse })
+            : () => {
+                const textLength = newText.length;
+                return { start: textLength, end: textLength };
+              };
+
+        applyTextMutation(editableRef.current, newText, transform);
+        lastTextRef.current = newText;
+        isApplyingPluginRef.current = false;
         onChange(block.id, newText);
         return;
       }
@@ -115,14 +154,13 @@ export function BlockWrapper({
         isApplyingPluginRef.current = false;
       }
     },
-    [applyTextMutation, block.id, onChange, onMergeWithPrevious, onSplit]
+    [block.id, onChange, onSplit, onMergeWithPrevious]
   );
 
   const handleInput = useCallback(() => {
     if (!editableRef.current || isApplyingPluginRef.current) return;
 
-    const root = editableRef.current;
-    let text = root.textContent || "";
+    let text = editableRef.current.textContent || "";
 
     if (text.endsWith("\n") && !block.raw.endsWith("\n")) {
       text = text.slice(0, -1);
@@ -133,157 +171,88 @@ export function BlockWrapper({
     if (plugin.normalize) {
       const result = plugin.normalize(text);
       if (result.text !== text) {
+        const transform = createDeltaTransform(result.delta);
+        applyTextMutation(editableRef.current, result.text, transform);
         text = result.text;
-        const delta = result.delta;
-        applyTextMutation(
-          result.text,
-          (start, end) => ({
-            start: Math.max(0, start + delta),
-            end: Math.max(0, end + delta),
-          })
-        );
       }
     }
 
     lastTextRef.current = text;
     onChange(block.id, text);
-  }, [applyTextMutation, block.id, block.raw, block.type, onChange]);
+  }, [block.id, block.raw, block.type, onChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (!editableRef.current) return;
 
-      const root = editableRef.current;
-      const sel = window.getSelection();
-      if (!sel) return;
-
-      const text = root.textContent || "";
+      const text = editableRef.current.textContent || "";
       const plugin = getPlugin(text, block.type);
-      const logicalSel = getSelectionOffsets(root);
+      const selectionSnapshot = getSelectionOffsets(editableRef.current);
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
 
         if (plugin.onEnter) {
+          const sel = window.getSelection();
           const result = plugin.onEnter({
             text,
-            selection: sel,
-            root,
+            selection: sel!,
+            root: editableRef.current,
           });
-          applyPluginResult(result);
+          applyPluginResult(result, selectionSnapshot.start);
         } else {
-          onSplit(block.id, text.slice(0, logicalSel.start), text.slice(logicalSel.start));
+          onSplit(block.id, text.slice(0, selectionSnapshot.start), text.slice(selectionSnapshot.start));
         }
         return;
       }
 
-      if (
-        e.key === "Backspace" &&
-        logicalSel.isInsideRoot &&
-        logicalSel.isCollapsed &&
-        logicalSel.start === 0
-      ) {
+      if (e.key === "Backspace" && selectionSnapshot.isInsideRoot && selectionSnapshot.isCollapsed) {
         if (plugin.onBackspace) {
+          const sel = window.getSelection();
           const result = plugin.onBackspace({
             text,
-            selection: sel,
-            root,
+            selection: sel!,
+            root: editableRef.current,
           });
 
           if (result.type !== "none") {
             e.preventDefault();
-            applyPluginResult(result);
+            applyPluginResult(result, selectionSnapshot.start);
             return;
           }
         }
 
-        e.preventDefault();
-        if (text.length === 0) {
-          onDelete(block.id);
-        } else {
-          onMergeWithPrevious(block.id);
+        const markerOnlyResult = getMarkerOnlyBackspaceResult(text, selectionSnapshot.start);
+        if (markerOnlyResult.type !== "none") {
+          e.preventDefault();
+          applyPluginResult(markerOnlyResult, selectionSnapshot.start);
+          return;
         }
-        return;
+
+        if (selectionSnapshot.start === 0) {
+          e.preventDefault();
+          if (text.length === 0) {
+            onDelete(block.id);
+          } else {
+            onMergeWithPrevious(block.id);
+          }
+          return;
+        }
       }
 
-      if (
-        e.key === "ArrowUp" &&
-        logicalSel.isInsideRoot &&
-        logicalSel.isCollapsed &&
-        logicalSel.start === 0
-      ) {
+      if (e.key === "ArrowUp" && isCaretAtStart(editableRef.current)) {
         e.preventDefault();
         onFocusPrevious(block.id, true);
         return;
       }
 
-      if (
-        e.key === "ArrowDown" &&
-        logicalSel.isInsideRoot &&
-        logicalSel.isCollapsed &&
-        logicalSel.end === text.length
-      ) {
+      if (e.key === "ArrowDown" && isCaretAtEnd(editableRef.current)) {
         e.preventDefault();
         onFocusNext(block.id);
       }
     },
-    [block.id, block.type, applyPluginResult, onDelete, onFocusNext, onFocusPrevious, onMergeWithPrevious, onSplit]
+    [block.id, block.type, applyPluginResult, onSplit, onDelete, onMergeWithPrevious, onFocusNext, onFocusPrevious]
   );
-
-  const getBlockStyle = (): React.CSSProperties => {
-    const currentType = detectType(block.raw);
-
-    const baseStyle: React.CSSProperties = {
-      position: "relative",
-      minHeight: "1.5em",
-    };
-
-    switch (currentType) {
-      case "heading": {
-        const level = block.raw.match(/^(#+)/)?.[1].length || 1;
-        const sizes: Record<number, string> = {
-          1: "2em",
-          2: "1.5em",
-          3: "1.25em",
-          4: "1.1em",
-          5: "1em",
-          6: "0.9em",
-        };
-        return {
-          ...baseStyle,
-          fontSize: sizes[level] || "1em",
-          fontWeight: "bold",
-        };
-      }
-      case "quote":
-        return {
-          ...baseStyle,
-          borderLeft: "3px solid #ddd",
-          paddingLeft: "12px",
-          color: "#555",
-          fontStyle: "italic",
-        };
-      case "code":
-        return {
-          ...baseStyle,
-          fontFamily: "monospace",
-          background: "#f5f5f5",
-          padding: "12px",
-          borderRadius: "4px",
-          whiteSpace: "pre-wrap",
-        };
-      case "list":
-      case "ordered-list":
-        return {
-          ...baseStyle,
-          paddingLeft: "8px",
-        };
-      default:
-        return baseStyle;
-    }
-  };
-
-  const blockStyle = getBlockStyle();
 
   const getHeadingLevel = () => {
     if (block.type === "heading") {
@@ -297,7 +266,7 @@ export function BlockWrapper({
 
   return (
     <div
-      style={{ position: "relative", ...blockStyle }}
+      style={{ position: "relative" }}
       data-block-id={block.id}
       data-block-type={block.type}
       data-heading-level={headingLevel}

@@ -146,10 +146,12 @@ describe('Plugins', () => {
       // Note: The mock returns offset 9, which means "> Hello w" (9 chars)
       // The test expectations need to match what the actual implementation does
       expect(result.type).toBe('update');
-      // The actual implementation splits at position 9: "> Hello w" + "orld"
-      // So new text = "> Hello w\n> orld"
-      expect(result.text).toBe('> Hello w\n> orld');
-      expect((result as any).cursorOffset).toBe(12); // After "> Hello w\n> "
+      if (result.type === 'update') {
+        // The actual implementation splits at position 9: "> Hello w" + "orld"
+        // So new text = "> Hello w\n> orld"
+        expect(result.text).toBe('> Hello w\n> orld');
+        expect(result.cursorOffset).toBe(12); // After "> Hello w\n> "
+      }
     });
 
     it('should exit quote when empty on Backspace', () => {
@@ -205,21 +207,48 @@ describe('Plugins', () => {
       const result = ListPlugin.onEnter!(ctx);
       
       expect(result.type).toBe('update');
-      // The actual implementation splits at position 9: "- Hello w" + "orld"
-      // So new text = "- Hello w\n- orld"
-      expect(result.text).toBe('- Hello w\n- orld');
-      expect((result as any).cursorOffset).toBe(12); // After "- Hello w\n- "
+      if (result.type === 'update') {
+        // The actual implementation splits at position 9: "- Hello w" + "orld"
+        // So new text = "- Hello w\n- orld"
+        expect(result.text).toBe('- Hello w\n- orld');
+        expect(result.cursorOffset).toBe(12); // After "- Hello w\n- "
+      }
     });
 
     it('should exit list when empty on Backspace', () => {
-      expect(ListPlugin.onBackspace!(createMockCtx('- '))).toEqual({
+      // Cursor at end of line (offset 2 for '- ' or '* ')
+      expect(ListPlugin.onBackspace!(createMockCtx('- ', 2))).toEqual({
         type: 'update',
         text: '',
+        cursorOffset: 0,
       });
       
-      expect(ListPlugin.onBackspace!(createMockCtx('* '))).toEqual({
+      expect(ListPlugin.onBackspace!(createMockCtx('* ', 2))).toEqual({
         type: 'update',
         text: '',
+        cursorOffset: 0,
+      });
+    });
+
+    it('should remove an empty list line inside a multi-line list on Backspace', () => {
+      const ctx = createMockCtx('- Item 1\n- \n- Item 2', 11);
+      const result = ListPlugin.onBackspace!(ctx);
+      
+      expect(result).toEqual({
+        type: 'update',
+        text: '- Item 1\n- Item 2',
+        cursorOffset: 8,
+      });
+    });
+
+    it('should remove the first empty list line on Backspace', () => {
+      const ctx = createMockCtx('- \n- Item 2', 2);
+      const result = ListPlugin.onBackspace!(ctx);
+      
+      expect(result).toEqual({
+        type: 'update',
+        text: '- Item 2',
+        cursorOffset: 0,
       });
     });
 
@@ -244,10 +273,12 @@ describe('Plugins', () => {
       const result = OrderedListPlugin.onEnter!(ctx);
       
       expect(result.type).toBe('update');
-      // The actual implementation splits at position 10: "1. Hello w" + "orld"
-      // So new text = "1. Hello w\n2. orld"
-      expect(result.text).toBe('1. Hello w\n2. orld');
-      expect((result as any).cursorOffset).toBe(14); // After "1. Hello w\n2. "
+      if (result.type === 'update') {
+        // The actual implementation splits at position 10: "1. Hello w" + "orld"
+        // So new text = "1. Hello w\n2. orld"
+        expect(result.text).toBe('1. Hello w\n2. orld');
+        expect(result.cursorOffset).toBe(14); // After "1. Hello w\n2. "
+      }
     });
 
     it('should handle multi-digit numbers correctly', () => {
@@ -255,21 +286,37 @@ describe('Plugins', () => {
       const result = OrderedListPlugin.onEnter!(ctx);
       
       expect(result.type).toBe('update');
-      // The actual implementation splits at position 11: "10. Hello w" + "orld"
-      // So new text = "10. Hello w\n11. orld"
-      expect(result.text).toBe('10. Hello w\n11. orld');
-      expect((result as any).cursorOffset).toBe(16); // After "10. Hello w\n11. "
+      if (result.type === 'update') {
+        // The actual implementation splits at position 11: "10. Hello w" + "orld"
+        // So new text = "10. Hello w\n11. orld"
+        expect(result.text).toBe('10. Hello w\n11. orld');
+        expect(result.cursorOffset).toBe(16); // After "10. Hello w\n11. "
+      }
     });
 
     it('should exit ordered list when empty on Backspace', () => {
-      expect(OrderedListPlugin.onBackspace!(createMockCtx('1. '))).toEqual({
+      // Cursor at end of line (offset 3 for '1. ', offset 4 for '10. ')
+      expect(OrderedListPlugin.onBackspace!(createMockCtx('1. ', 3))).toEqual({
         type: 'update',
         text: '',
+        cursorOffset: 0,
       });
       
-      expect(OrderedListPlugin.onBackspace!(createMockCtx('10. '))).toEqual({
+      expect(OrderedListPlugin.onBackspace!(createMockCtx('10. ', 4))).toEqual({
         type: 'update',
         text: '',
+        cursorOffset: 0,
+      });
+    });
+
+    it('should remove an empty ordered list line inside a multi-line list on Backspace', () => {
+      const ctx = createMockCtx('1. Item 1\n2. \n3. Item 2', 13);
+      const result = OrderedListPlugin.onBackspace!(ctx);
+      
+      expect(result).toEqual({
+        type: 'update',
+        text: '1. Item 1\n3. Item 2',
+        cursorOffset: 9,
       });
     });
 
@@ -317,10 +364,12 @@ describe('Plugins', () => {
       const result = CodeBlockPlugin.onEnter!(ctx);
       
       expect(result.type).toBe('update');
-      // The actual implementation splits at position 12: "```\nline1\nli" + "ne2"
-      // So new text = "```\nline1\nli\nne2"
-      expect(result.text).toBe('```\nline1\nli\nne2');
-      expect((result as any).cursorOffset).toBe(13); // After "```\nline1\nli\n"
+      if (result.type === 'update') {
+        // The actual implementation splits at position 12: "```\nline1\nli" + "ne2"
+        // So new text = "```\nline1\nli\nne2"
+        expect(result.text).toBe('```\nline1\nli\nne2');
+        expect(result.cursorOffset).toBe(13); // After "```\nline1\nli\n"
+      }
     });
 
     it('should exit code block when only opening markers on Backspace', () => {
@@ -426,8 +475,10 @@ describe('Plugins', () => {
         const result = plugin.onEnter!(ctx);
         
         expect(result.type).toBe('split');
-        expect((result as any).before).toBe('Paragrap');
-        expect((result as any).after).toBe('h text');
+        if (result.type === 'split') {
+          expect(result.before).toBe('Paragrap');
+          expect(result.after).toBe('h text');
+        }
       });
 
       it('should handle Enter at beginning of text', () => {
@@ -436,8 +487,10 @@ describe('Plugins', () => {
         const result = plugin.onEnter!(ctx);
         
         expect(result.type).toBe('split');
-        expect((result as any).before).toBe('');
-        expect((result as any).after).toBe('Text');
+        if (result.type === 'split') {
+          expect(result.before).toBe('');
+          expect(result.after).toBe('Text');
+        }
       });
 
       it('should handle Enter at end of text', () => {
@@ -446,8 +499,10 @@ describe('Plugins', () => {
         const result = plugin.onEnter!(ctx);
         
         expect(result.type).toBe('split');
-        expect((result as any).before).toBe('Text');
-        expect((result as any).after).toBe('');
+        if (result.type === 'split') {
+          expect(result.before).toBe('Text');
+          expect(result.after).toBe('');
+        }
       });
     });
 
@@ -468,7 +523,9 @@ describe('Plugins', () => {
         if (plugin.onBackspace) {
           const result = plugin.onBackspace!(ctx);
           expect(result.type).toBe('update');
-          expect((result as any).text).toBe('');
+          if (result.type === 'update') {
+            expect(result.text).toBe('');
+          }
         }
       });
     });

@@ -3,6 +3,39 @@
 import { BlockPlugin, PluginCtx, PluginResult } from "./types";
 import { getCaretOffset } from "./utils";
 
+function getCurrentLineBounds(text: string, offset: number) {
+  const safeOffset = Math.max(0, Math.min(offset, text.length));
+  const lineStart = text.lastIndexOf("\n", Math.max(0, safeOffset - 1)) + 1;
+  const nextNewline = text.indexOf("\n", safeOffset);
+  const lineEnd = nextNewline === -1 ? text.length : nextNewline;
+
+  return {
+    lineStart,
+    lineEnd,
+    line: text.slice(lineStart, lineEnd),
+  };
+}
+
+function removeCurrentLine(text: string, lineStart: number, lineEnd: number) {
+  if (lineStart === 0 && lineEnd === text.length) {
+    return { text: "", cursorOffset: 0 };
+  }
+
+  if (lineStart === 0) {
+    const nextStart = Math.min(text.length, lineEnd + 1);
+    return {
+      text: text.slice(nextStart),
+      cursorOffset: 0,
+    };
+  }
+
+  const removeFrom = lineStart - 1;
+  return {
+    text: text.slice(0, removeFrom) + text.slice(lineEnd),
+    cursorOffset: removeFrom,
+  };
+}
+
 /**
  * Paragraph Plugin - default fallback
  */
@@ -176,13 +209,20 @@ export const ListPlugin: BlockPlugin = {
   },
 
   onBackspace(ctx: PluginCtx): PluginResult {
-    const { text } = ctx;
+    if (!ctx.selection.isCollapsed) {
+      return { type: "none" };
+    }
 
-    // Convert to paragraph if only "- " or "* "
-    if (text === "- " || text === "* ") {
+    const { text } = ctx;
+    const offset = getCaretOffset(ctx.root, ctx.selection);
+    const { lineStart, lineEnd, line } = getCurrentLineBounds(text, offset);
+
+    if (/^[-*]\s?$/.test(line) && offset >= lineStart + line.length) {
+      const result = removeCurrentLine(text, lineStart, lineEnd);
       return {
         type: "update",
-        text: "",
+        text: result.text,
+        cursorOffset: result.cursorOffset,
       };
     }
 
@@ -222,13 +262,20 @@ export const OrderedListPlugin: BlockPlugin = {
   },
 
   onBackspace(ctx: PluginCtx): PluginResult {
-    const { text } = ctx;
+    if (!ctx.selection.isCollapsed) {
+      return { type: "none" };
+    }
 
-    // Convert to paragraph if only "1. " etc.
-    if (/^\d+\.\s$/.test(text)) {
+    const { text } = ctx;
+    const offset = getCaretOffset(ctx.root, ctx.selection);
+    const { lineStart, lineEnd, line } = getCurrentLineBounds(text, offset);
+
+    if (/^\d+\.\s?$/.test(line) && offset >= lineStart + line.length) {
+      const result = removeCurrentLine(text, lineStart, lineEnd);
       return {
         type: "update",
-        text: "",
+        text: result.text,
+        cursorOffset: result.cursorOffset,
       };
     }
 

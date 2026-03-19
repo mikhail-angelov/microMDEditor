@@ -133,3 +133,46 @@ export function isCaretAtEnd(root: HTMLElement): boolean {
   const textLength = root.textContent?.length || 0;
   return snapshot.isInsideRoot && snapshot.isCollapsed && snapshot.end === textLength;
 }
+
+/**
+ * Type for selection transformation functions
+ * Maps old selection offsets to new selection offsets after text transformation
+ */
+export type SelectionTransform = (oldStart: number, oldEnd: number) => { start: number; end: number };
+
+/**
+ * Create a simple delta-based selection transform
+ * Useful for normalization operations that shift text by a fixed amount
+ */
+export function createDeltaTransform(delta: number): SelectionTransform {
+  return (oldStart: number, oldEnd: number) => ({
+    start: Math.max(0, oldStart + delta),
+    end: Math.max(0, oldEnd + delta),
+  });
+}
+
+/**
+ * Apply text mutation with selection preservation
+ * Handles the common pattern of:
+ * 1. Snapshot current selection
+ * 2. Apply text change
+ * 3. Restore selection using transform
+ */
+export function applyTextMutation(
+  root: HTMLElement,
+  nextText: string,
+  mapSelection: SelectionTransform
+): void {
+  const snapshot = getSelectionOffsets(root);
+  
+  // Only update text if it changed
+  if (root.textContent !== nextText) {
+    root.textContent = nextText;
+  }
+  
+  // Restore selection if it was inside the root
+  if (snapshot.isInsideRoot) {
+    const newSelection = mapSelection(snapshot.start, snapshot.end);
+    restoreSelectionOffsets(root, newSelection.start, newSelection.end);
+  }
+}
