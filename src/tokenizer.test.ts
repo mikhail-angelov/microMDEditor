@@ -186,21 +186,21 @@ describe('Tokenizer', () => {
       const text = '**bold text**';
       const result = renderDecorations(text, 'paragraph');
       
-      expect(result).toBe('<span class="md-syntax">**</span><strong>bold text</strong><span class="md-syntax">**</span>');
+      expect(result).toBe('<span class="md-syntax">**</span><span class="md-inline-bold">bold text</span><span class="md-syntax">**</span>');
     });
 
     it('should render italic text with HTML tags', () => {
       const text = '*italic text*';
       const result = renderDecorations(text, 'paragraph');
       
-      expect(result).toBe('<span class="md-syntax">*</span><em>italic text</em><span class="md-syntax">*</span>');
+      expect(result).toBe('<span class="md-syntax">*</span><span class="md-inline-italic">italic text</span><span class="md-syntax">*</span>');
     });
 
     it('should render inline code with HTML tags', () => {
       const text = '`code snippet`';
       const result = renderDecorations(text, 'paragraph');
       
-      expect(result).toBe('<span class="md-syntax">`</span><code class="inline-code">code snippet</code><span class="md-syntax">`</span>');
+      expect(result).toBe('<span class="md-syntax">`</span><span class="md-inline-code">code snippet</span><span class="md-syntax">`</span>');
     });
 
     it('should escape HTML in text content', () => {
@@ -217,7 +217,7 @@ describe('Tokenizer', () => {
       const result = renderDecorations(text, 'paragraph');
       
       // The escapeHtml function escapes the <script> tag
-      expect(result).toBe('<span class="md-syntax">**</span><strong>bold</strong><span class="md-syntax">**</span> and &lt;script&gt;');
+      expect(result).toBe('<span class="md-syntax">**</span><span class="md-inline-bold">bold</span><span class="md-syntax">**</span> and &lt;script&gt;');
     });
   });
 
