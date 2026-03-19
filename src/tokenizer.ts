@@ -87,9 +87,8 @@ export function tokenize(text: string): Token[] {
       if (bracketEnd !== -1 && text[bracketEnd + 1] === "(") {
         const parenEnd = text.indexOf(")", bracketEnd + 2);
         if (parenEnd !== -1) {
-          tokens.push({ type: "syntax", content: "[" });
-          tokens.push({ type: "link", content: text.slice(i + 1, bracketEnd) });
-          tokens.push({ type: "syntax", content: "](" + text.slice(bracketEnd + 2, parenEnd) + ")" });
+          const fullLink = text.slice(i, parenEnd + 1);
+          tokens.push({ type: "link", content: fullLink });
           i = parenEnd + 1;
           continue;
         }

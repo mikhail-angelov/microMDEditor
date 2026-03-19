@@ -74,15 +74,13 @@ describe('Tokenizer', () => {
       expect(tokens[1]).toEqual({ type: 'text', content: 'Heading 3' });
     });
 
-    it('should handle links', () => {
-      const text = '[link text](https://example.com)';
-      const tokens = tokenize(text);
-      
-      expect(tokens).toHaveLength(3);
-      expect(tokens[0]).toEqual({ type: 'syntax', content: '[' });
-      expect(tokens[1]).toEqual({ type: 'link', content: 'link text' });
-      expect(tokens[2]).toEqual({ type: 'syntax', content: '](https://example.com)' });
-    });
+  it('should handle links', () => {
+    const text = '[link text](https://example.com)';
+    const tokens = tokenize(text);
+    
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]).toEqual({ type: 'link', content: '[link text](https://example.com)' });
+  });
 
     it('should handle text with escaped characters', () => {
       const text = 'Text with \\*escaped asterisk\\*';

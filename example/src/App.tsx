@@ -13,6 +13,7 @@ This is a **Notion-style Markdown editor** built with React. Edit markdown direc
 - Inline \`code\` rendering
 - Block-based editing
 - **Light & Dark themes**
+- [Link support](https://example.com) with full syntax display
 
 ## Try It Out
 
@@ -37,7 +38,7 @@ function hello() {
 3. Backspace at start merges with previous
 4. Arrow keys navigate between blocks
 
-The editor shows **syntax markers** with reduced opacity while rendering styled content!
+The editor shows **syntax markers** with reduced opacity while rendering styled content! Try editing this [example link](https://github.com) to see how links work.
 `);
 
   const [theme, setTheme] = useState<Theme>('light');
@@ -112,7 +113,8 @@ The editor shows **syntax markers** with reduced opacity while rendering styled 
             <li><code># Heading</code> through <code>###### Heading</code></li>
             <li><code>**bold**</code> and <code>*italic*</code></li>
             <li><code>`inline code`</code></li>
-            <li><code>&gt; Blockquote</code></li>
+            <li><code>[links](https://example.com)</code></li>
+            <li><code> Blockquote</code></li>
             <li><code>- List item</code> or <code>* List item</code></li>
             <li><code>1. Numbered list</code></li>
             <li><code>```code block```</code></li>
