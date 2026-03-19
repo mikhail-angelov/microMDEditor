@@ -109,7 +109,7 @@ describe('BlockWrapper0', () => {
     const { editable, onMergeWithPrevious } = renderBlock('**bold**');
     
     // Mock getSelectionOffsets to return caret at start (inside root)
-    const selectionMock = require('./selection');
+    const selectionMock = jest.requireMock('./selection');
     selectionMock.__mockGetSelectionOffsets.mockReturnValue({
       start: 0,
       end: 0,
@@ -126,7 +126,7 @@ describe('BlockWrapper0', () => {
     const { editable, onMergeWithPrevious, onDelete } = renderBlock('**bold** text');
     
     // Mock getSelectionOffsets to return non-collapsed selection
-    const selectionMock = require('./selection');
+    const selectionMock = jest.requireMock('./selection');
     selectionMock.__mockGetSelectionOffsets.mockReturnValue({
       start: 0,
       end: 4,
@@ -160,7 +160,7 @@ describe('BlockWrapper', () => {
     jest.clearAllMocks();
     
     // Reset mocks
-    const selectionMock = require('./selection');
+    const selectionMock = jest.requireMock('./selection');
     selectionMock.__mockGetSelectionOffsets.mockReset();
     selectionMock.__mockGetSelectionOffsets.mockReturnValue({
       start: 0,
@@ -172,7 +172,7 @@ describe('BlockWrapper', () => {
     selectionMock.__mockIsCaretAtStart.mockReset();
     selectionMock.__mockIsCaretAtEnd.mockReset();
     
-    const pluginsMock = require('./plugins');
+    const pluginsMock = jest.requireMock('./plugins');
     pluginsMock.__mockGetPlugin.mockReset();
     pluginsMock.__mockGetPlugin.mockReturnValue({
       type: 'paragraph',
@@ -208,7 +208,7 @@ describe('BlockWrapper', () => {
       const { editable } = renderBlockWrapper(block);
       
       // Mock getSelectionOffsets to return caret not at start
-      const selectionMock = require('./selection');
+      const selectionMock = jest.requireMock('./selection');
       selectionMock.__mockGetSelectionOffsets.mockReturnValue({
         start: 5,
         end: 5,
@@ -227,7 +227,7 @@ describe('BlockWrapper', () => {
       const { editable } = renderBlockWrapper(block);
       
       // Mock getSelectionOffsets to return caret at start
-      const selectionMock = require('./selection');
+      const selectionMock = jest.requireMock('./selection');
       selectionMock.__mockGetSelectionOffsets.mockReturnValue({
         start: 0,
         end: 0,
@@ -246,7 +246,7 @@ describe('BlockWrapper', () => {
       const { editable } = renderBlockWrapper(block);
       
       // Mock getSelectionOffsets to return caret at start on empty block
-      const selectionMock = require('./selection');
+      const selectionMock = jest.requireMock('./selection');
       selectionMock.__mockGetSelectionOffsets.mockReturnValue({
         start: 0,
         end: 0,
@@ -265,7 +265,7 @@ describe('BlockWrapper', () => {
       const { editable } = renderBlockWrapper(block);
       
       // Mock getSelectionOffsets to return non-collapsed selection
-      const selectionMock = require('./selection');
+      const selectionMock = jest.requireMock('./selection');
       selectionMock.__mockGetSelectionOffsets.mockReturnValue({
         start: 0,
         end: 4,
@@ -284,7 +284,7 @@ describe('BlockWrapper', () => {
       const { editable } = renderBlockWrapper(block);
       
       // Mock getSelectionOffsets to return caret at offset 1
-      const selectionMock = require('./selection');
+      const selectionMock = jest.requireMock('./selection');
       selectionMock.__mockGetSelectionOffsets.mockReturnValue({
         start: 1,
         end: 1,

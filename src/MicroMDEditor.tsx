@@ -2,7 +2,7 @@
 // Notion-style architecture: React controls structure, browser controls content
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Block, MicroMDEditorProps, Theme } from "./types";
+import { Block, MicroMDEditorProps } from "./types";
 import { BlockWrapper } from "./BlockWrapper";
 import { parseMarkdown, blocksToMarkdown, genId, detectType, placeCaretAtEnd, placeCaretAtOffset } from "./utils";
 

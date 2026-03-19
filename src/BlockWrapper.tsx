@@ -116,7 +116,7 @@ export function BlockWrapper({
       editableRef.current.textContent = block.raw;
       lastTextRef.current = block.raw;
     }
-  }, [block.id]);
+  }, [block.id, block.raw]);
 
   const applyPluginResult = useCallback(
     (result: PluginResult, caretOffset?: number) => {

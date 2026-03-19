@@ -4,7 +4,13 @@ import { MicroMDEditor } from './MicroMDEditor';
 
 // Mock BlockWrapper to simplify testing
 jest.mock('./BlockWrapper', () => ({
-  BlockWrapper: ({ block, onChange, onSplit, onMergeWithPrevious, onFocusNext, onFocusPrevious, onDelete, registerRef }: any) => {
+  BlockWrapper: ({ block, onChange, onSplit, onMergeWithPrevious, registerRef }: {
+    block: { id: string; raw: string };
+    onChange: (id: string, text: string) => void;
+    onSplit: (id: string, before: string, after: string) => void;
+    onMergeWithPrevious: (id: string) => void;
+    registerRef: (id: string, ref: { current: null }) => void;
+  }) => {
     // Store ref for testing
     React.useEffect(() => {
       if (registerRef) {

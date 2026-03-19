@@ -37,13 +37,13 @@ describe('selection helpers', () => {
     
     const mockRange = {
       commonAncestorContainer: document.createElement('div'), // Different container
-    };
+    } as Range;
     
     const mockSelection = {
       rangeCount: 1,
       getRangeAt: jest.fn(() => mockRange),
       isCollapsed: true,
-    };
+    } as Selection;
     
     Object.defineProperty(window, 'getSelection', {
       writable: true,
@@ -68,12 +68,12 @@ describe('selection helpers', () => {
       setStart: jest.fn(),
       setEnd: jest.fn(),
       collapse: jest.fn(),
-    };
+    } as unknown as Range;
     
     const mockSelection = {
       removeAllRanges: jest.fn(),
       addRange: jest.fn(),
-    };
+    } as unknown as Selection;
     
     Object.defineProperty(window, 'getSelection', {
       writable: true,
@@ -82,7 +82,7 @@ describe('selection helpers', () => {
     
     // Mock document.createRange
     const originalCreateRange = document.createRange;
-    document.createRange = jest.fn(() => mockRange as any);
+    document.createRange = jest.fn(() => mockRange);
 
     restoreSelectionOffsets(mockRoot, 5);
     
@@ -101,12 +101,12 @@ describe('selection helpers', () => {
       setStart: jest.fn(),
       setEnd: jest.fn(),
       collapse: jest.fn(),
-    };
+    } as unknown as Range;
     
     const mockSelection = {
       removeAllRanges: jest.fn(),
       addRange: jest.fn(),
-    };
+    } as unknown as Selection;
     
     Object.defineProperty(window, 'getSelection', {
       writable: true,
@@ -115,7 +115,7 @@ describe('selection helpers', () => {
     
     // Mock document.createRange
     const originalCreateRange = document.createRange;
-    document.createRange = jest.fn(() => mockRange as any);
+    document.createRange = jest.fn(() => mockRange);
 
     restoreSelectionOffsets(mockRoot, 10); // Offset beyond text length
     
@@ -134,12 +134,12 @@ describe('selection helpers', () => {
       setStart: jest.fn(),
       setEnd: jest.fn(),
       collapse: jest.fn(),
-    };
+    } as unknown as Range;
     
     const mockSelection = {
       removeAllRanges: jest.fn(),
       addRange: jest.fn(),
-    };
+    } as unknown as Selection;
     
     Object.defineProperty(window, 'getSelection', {
       writable: true,
@@ -148,7 +148,7 @@ describe('selection helpers', () => {
     
     // Mock document.createRange
     const originalCreateRange = document.createRange;
-    document.createRange = jest.fn(() => mockRange as any);
+    document.createRange = jest.fn(() => mockRange);
 
     restoreSelectionOffsets(mockRoot, -5); // Negative offset
     
@@ -167,12 +167,12 @@ describe('selection helpers', () => {
       setStart: jest.fn(),
       setEnd: jest.fn(),
       collapse: jest.fn(),
-    };
+    } as unknown as Range;
     
     const mockSelection = {
       removeAllRanges: jest.fn(),
       addRange: jest.fn(),
-    };
+    } as unknown as Selection;
     
     Object.defineProperty(window, 'getSelection', {
       writable: true,
@@ -181,7 +181,7 @@ describe('selection helpers', () => {
     
     // Mock document.createRange
     const originalCreateRange = document.createRange;
-    document.createRange = jest.fn(() => mockRange as any);
+    document.createRange = jest.fn(() => mockRange);
 
     restoreSelectionOffsets(mockRoot, 2, 7);
     

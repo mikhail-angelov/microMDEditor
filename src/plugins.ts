@@ -103,7 +103,7 @@ export const QuotePlugin: BlockPlugin = {
     const lines = text.split("\n");
     let totalDelta = 0;
     
-    const normalizedLines = lines.map((line, index) => {
+    const normalizedLines = lines.map((line) => {
       if (line.trim() === "") {
         // Empty line becomes "> " - adds 2 characters
         totalDelta += 2;
@@ -170,7 +170,7 @@ export const ListPlugin: BlockPlugin = {
     const lines = text.split("\n");
     let totalDelta = 0;
     
-    const normalizedLines = lines.map((line, index) => {
+    const normalizedLines = lines.map((line) => {
       if (line.trim() === "") {
         // Empty line becomes "- " - adds 2 characters
         totalDelta += 2;
