@@ -84,13 +84,22 @@ export function placeCaretAtOffset(el: HTMLElement, offset: number): void {
 
 /**
  * Detect block type from text content
+ * Should match plugin detection logic
  */
 export function detectType(text: string): string {
   if (/^#{1,6}\s/.test(text)) return "heading";
   if (/^>\s?/.test(text)) return "quote";
   if (/^[-*]\s/.test(text)) return "list";
   if (/^\d+\.\s/.test(text)) return "ordered-list";
-  if (/^```/.test(text)) return "code";
+  
+  // Check for code blocks - any line starting with ```
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (line.trim().startsWith('```')) {
+      return "code";
+    }
+  }
+  
   return "paragraph";
 }
 

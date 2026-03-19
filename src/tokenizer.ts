@@ -6,14 +6,24 @@ import { escapeHtml } from "./utils";
 /**
  * Tokenize text into decoration tokens
  * Handles: **bold**, *italic*, `code`, headings, links
+ * Groups text runs for efficiency
  */
 export function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
+  let textBuffer = "";
+
+  const flushTextBuffer = () => {
+    if (textBuffer.length > 0) {
+      tokens.push({ type: "text", content: textBuffer });
+      textBuffer = "";
+    }
+  };
 
   while (i < text.length) {
     // Bold **text**
     if (text.startsWith("**", i)) {
+      flushTextBuffer();
       const end = text.indexOf("**", i + 2);
       if (end !== -1) {
         tokens.push({ type: "syntax", content: "**" });
@@ -26,6 +36,7 @@ export function tokenize(text: string): Token[] {
 
     // Italic *text* (but not if it's part of **)
     if (text[i] === "*" && text[i + 1] !== "*" && (i === 0 || text[i - 1] !== "*")) {
+      flushTextBuffer();
       const end = text.indexOf("*", i + 1);
       if (end !== -1 && text[end + 1] !== "*") {
         tokens.push({ type: "syntax", content: "*" });
@@ -38,6 +49,7 @@ export function tokenize(text: string): Token[] {
 
     // Inline code `text`
     if (text[i] === "`" && !text.startsWith("```", i)) {
+      flushTextBuffer();
       const end = text.indexOf("`", i + 1);
       if (end !== -1 && !text.startsWith("```", end)) {
         tokens.push({ type: "syntax", content: "`" });
@@ -50,6 +62,7 @@ export function tokenize(text: string): Token[] {
 
     // Heading syntax (# ## ### etc.) at start
     if (i === 0 && text[i] === "#") {
+      flushTextBuffer();
       let hashEnd = 0;
       while (text[hashEnd] === "#" && hashEnd < 6) {
         hashEnd++;
@@ -63,6 +76,7 @@ export function tokenize(text: string): Token[] {
 
     // Link [text](url)
     if (text[i] === "[") {
+      flushTextBuffer();
       const bracketEnd = text.indexOf("]", i + 1);
       if (bracketEnd !== -1 && text[bracketEnd + 1] === "(") {
         const parenEnd = text.indexOf(")", bracketEnd + 2);
@@ -76,10 +90,13 @@ export function tokenize(text: string): Token[] {
       }
     }
 
-    // Default: regular text
-    tokens.push({ type: "text", content: text[i] });
+    // Accumulate regular text
+    textBuffer += text[i];
     i++;
   }
+
+  // Flush any remaining text
+  flushTextBuffer();
 
   return tokens;
 }

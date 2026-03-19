@@ -4,7 +4,7 @@
 import React, { useRef, useEffect, useCallback } from "react";
 import { Block, PluginResult } from "./types";
 import { getPlugin } from "./plugins";
-import { renderDecorations } from "./tokenizer";
+import { DecorationLayer } from "./DecorationLayer";
 import { getCaretOffset, placeCaretAtEnd, placeCaretAtOffset, detectType } from "./utils";
 
 interface BlockWrapperProps {
@@ -43,8 +43,9 @@ export function BlockWrapper({
     if (!editableRef.current) return;
 
     // Only set if different to avoid cursor jump
-    if (editableRef.current.innerText !== block.raw) {
-      editableRef.current.innerText = block.raw;
+    // Use textContent instead of innerText for accurate whitespace handling
+    if (editableRef.current.textContent !== block.raw) {
+      editableRef.current.textContent = block.raw;
       lastTextRef.current = block.raw;
     }
   }, [block.id]);
@@ -64,8 +65,8 @@ export function BlockWrapper({
         const newText = result.text;
         const offsetToUse = result.cursorOffset !== undefined ? result.cursorOffset : caretOffset;
         
-        // Update the text
-        editableRef.current.innerText = newText;
+        // Update the text - use textContent for accurate whitespace
+        editableRef.current.textContent = newText;
         lastTextRef.current = newText;
         
         // Schedule cursor placement on next animation frame to ensure DOM is updated
@@ -107,14 +108,14 @@ export function BlockWrapper({
   const handleInput = useCallback(() => {
     if (!editableRef.current || isApplyingPluginRef.current) return;
 
-    let text = editableRef.current.innerText;
+    let text = editableRef.current.textContent || "";
 
     // Normalize - remove trailing newlines that browsers add
     if (text.endsWith("\n") && !block.raw.endsWith("\n")) {
       text = text.slice(0, -1);
     }
 
-    const plugin = getPlugin(text);
+    const plugin = getPlugin(text, block.type);
 
     // Apply normalization if plugin has it
     if (plugin.normalize) {
@@ -125,7 +126,7 @@ export function BlockWrapper({
         const caretPos = sel ? getCaretOffset(editableRef.current, sel) : text.length;
 
         text = result.text;
-        editableRef.current.innerText = result.text;
+        editableRef.current.textContent = result.text;
         // Adjust cursor position by delta (how much the text changed)
         placeCaretAtOffset(editableRef.current, caretPos + result.delta);
       }
@@ -133,7 +134,7 @@ export function BlockWrapper({
 
     lastTextRef.current = text;
     onChange(block.id, text);
-  }, [block.id, block.raw, onChange]);
+  }, [block.id, block.raw, block.type, onChange]);
 
   // Handle keydown
   const handleKeyDown = useCallback(
@@ -143,8 +144,8 @@ export function BlockWrapper({
       const sel = window.getSelection();
       if (!sel) return;
 
-      const text = editableRef.current.innerText;
-      const plugin = getPlugin(text);
+      const text = editableRef.current.textContent || "";
+      const plugin = getPlugin(text, block.type);
       const caretOffset = getCaretOffset(editableRef.current, sel);
 
       // Enter key
@@ -208,7 +209,7 @@ export function BlockWrapper({
         return;
       }
     },
-    [block.id, applyPluginResult, onSplit, onDelete, onMergeWithPrevious, onFocusNext, onFocusPrevious]
+    [block.id, block.type, applyPluginResult, onSplit, onDelete, onMergeWithPrevious, onFocusNext, onFocusPrevious]
   );
 
   // Get block styles based on type
@@ -298,10 +299,9 @@ export function BlockWrapper({
           color: "inherit",
           padding: "inherit",
         }}
-        dangerouslySetInnerHTML={{
-          __html: renderDecorations(block.raw, detectType(block.raw)),
-        }}
-      />
+      >
+        <DecorationLayer text={block.raw} blockType={detectType(block.raw)} />
+      </div>
 
       {/* Editable Layer - user types here */}
       <div

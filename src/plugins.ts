@@ -243,7 +243,19 @@ export const CodeBlockPlugin: BlockPlugin = {
   type: "code",
 
   match(text: string): boolean {
-    return /^```/.test(text);
+    // Check if text starts with ``` (opening marker)
+    // OR if it contains ``` anywhere (could be multi-line code block)
+    // We need to handle multi-line code blocks as atomic blocks
+    const lines = text.split('\n');
+    
+    // If any line starts with ```, treat as code block
+    for (const line of lines) {
+      if (line.trim().startsWith('```')) {
+        return true;
+      }
+    }
+    
+    return false;
   },
 
   normalize(text: string): { text: string; delta: number } {
@@ -312,7 +324,17 @@ export const plugins: BlockPlugin[] = [
 
 /**
  * Get the appropriate plugin for a given text
+ * Optionally consider current type for sticky behavior
  */
-export function getPlugin(text: string): BlockPlugin {
+export function getPlugin(text: string, currentType?: string): BlockPlugin {
+  // If we have a current type, try to find that plugin first
+  if (currentType) {
+    const currentPlugin = plugins.find((p) => p.type === currentType);
+    if (currentPlugin && currentPlugin.match(text)) {
+      return currentPlugin;
+    }
+  }
+  
+  // Otherwise, find the first matching plugin
   return plugins.find((p) => p.match(text)) || ParagraphPlugin;
 }
