@@ -41,20 +41,16 @@ export {
   blocksToMarkdown,
 } from "./utils";
 
-// Export selection utilities
-export {
-  getSelectionOffsets,
-  restoreSelectionOffsets,
-  isCaretAtStart,
-  isCaretAtEnd,
-  createDeltaTransform,
-  applyTextMutation,
-  type SelectionTransform,
-  type LogicalSelectionSnapshot,
-} from "./selection";
-
 // Export tokenizer
 export { tokenize, renderDecorations } from "./tokenizer";
 
 // Export BlockWrapper for advanced usage
 export { BlockWrapper } from "./BlockWrapper";
+
+// Export selection helpers
+export {
+  getSelectionOffsets,
+  restoreSelectionOffsets,
+  isCaretAtStart,
+  isCaretAtEnd,
+} from "./selection";

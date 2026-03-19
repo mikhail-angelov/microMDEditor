@@ -1,11 +1,61 @@
 import * as selection from './selection';
 import { getCaretOffset, placeCaretAtOffset } from './utils';
+import { getSelectionOffsets, restoreSelectionOffsets } from './selection';
 
 // Mock the utils functions
 jest.mock('./utils', () => ({
   getCaretOffset: jest.fn(),
   placeCaretAtOffset: jest.fn(),
 }));
+
+function setRootText(root: HTMLElement, text: string) {
+  root.textContent = text;
+  document.body.appendChild(root);
+}
+
+describe('selection helpers', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    window.getSelection()?.removeAllRanges();
+  });
+
+  it('round-trips collapsed offsets through plain text', () => {
+    const root = document.createElement('div');
+    setRootText(root, 'hello world');
+
+    restoreSelectionOffsets(root, 4);
+    const snap = getSelectionOffsets(root);
+
+    expect(snap.isInsideRoot).toBe(true);
+    expect(snap.isCollapsed).toBe(true);
+    expect(snap.start).toBe(4);
+    expect(snap.end).toBe(4);
+  });
+
+  it('restores non-collapsed ranges', () => {
+    const root = document.createElement('div');
+    setRootText(root, 'a **bold** b `code` c ~~ss~~');
+
+    restoreSelectionOffsets(root, 2, 10);
+    const snap = getSelectionOffsets(root);
+
+    expect(snap.isInsideRoot).toBe(true);
+    expect(snap.isCollapsed).toBe(false);
+    expect(snap.start).toBe(2);
+    expect(snap.end).toBe(10);
+  });
+
+  it('clamps offsets to text bounds', () => {
+    const root = document.createElement('div');
+    setRootText(root, 'abc');
+
+    restoreSelectionOffsets(root, 999);
+    const snap = getSelectionOffsets(root);
+
+    expect(snap.start).toBe(3);
+    expect(snap.end).toBe(3);
+  });
+});
 
 describe('selection utilities', () => {
   beforeEach(() => {

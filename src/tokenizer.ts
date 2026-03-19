@@ -1,13 +1,6 @@
-// Tokenizer for decoration layer - converts markdown to displayable tokens
-
 import { Token } from "./types";
 import { escapeHtml } from "./utils";
 
-/**
- * Tokenize text into decoration tokens
- * Handles: **bold**, *italic*, `code`, headings, links
- * Groups text runs for efficiency
- */
 export function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
   let i = 0;
@@ -21,7 +14,6 @@ export function tokenize(text: string): Token[] {
   };
 
   while (i < text.length) {
-    // Bold **text**
     if (text.startsWith("**", i)) {
       flushTextBuffer();
       const end = text.indexOf("**", i + 2);
@@ -34,7 +26,18 @@ export function tokenize(text: string): Token[] {
       }
     }
 
-    // Italic *text* (but not if it's part of **)
+    if (text.startsWith("~~", i)) {
+      flushTextBuffer();
+      const end = text.indexOf("~~", i + 2);
+      if (end !== -1) {
+        tokens.push({ type: "syntax", content: "~~" });
+        tokens.push({ type: "strike", content: text.slice(i + 2, end) });
+        tokens.push({ type: "syntax", content: "~~" });
+        i = end + 2;
+        continue;
+      }
+    }
+
     if (text[i] === "*" && text[i + 1] !== "*" && (i === 0 || text[i - 1] !== "*")) {
       flushTextBuffer();
       const end = text.indexOf("*", i + 1);
@@ -47,17 +50,13 @@ export function tokenize(text: string): Token[] {
       }
     }
 
-    // Inline code `text` - handle triple backticks as text
     if (text[i] === "`") {
-      // Check if this is triple backticks
       if (text.startsWith("```", i)) {
-        // Triple backticks - treat as text, not inline code
-        // Add all three backticks to buffer
         textBuffer += "```";
         i += 3;
         continue;
       }
-      
+
       flushTextBuffer();
       const end = text.indexOf("`", i + 1);
       if (end !== -1) {
@@ -69,7 +68,6 @@ export function tokenize(text: string): Token[] {
       }
     }
 
-    // Heading syntax (# ## ### etc.) at start
     if (i === 0 && text[i] === "#") {
       flushTextBuffer();
       let hashEnd = 0;
@@ -83,7 +81,6 @@ export function tokenize(text: string): Token[] {
       }
     }
 
-    // Link [text](url)
     if (text[i] === "[") {
       flushTextBuffer();
       const bracketEnd = text.indexOf("]", i + 1);
@@ -99,39 +96,31 @@ export function tokenize(text: string): Token[] {
       }
     }
 
-    // Accumulate regular text
     textBuffer += text[i];
     i++;
   }
 
-  // Flush any remaining text
   flushTextBuffer();
-
   return tokens;
 }
 
-/**
- * Render tokens to HTML string for decoration layer
- */
 export function renderDecorations(text: string, blockType: string): string {
-  // For code blocks, don't tokenize - just render as plain text
   if (blockType === "code") {
     return escapeHtml(text);
   }
 
-  const tokens = tokenize(text);
-
-  return tokens
+  return tokenize(text)
     .map((t) => {
       const content = escapeHtml(t.content);
-
       switch (t.type) {
         case "bold":
-          return `<strong>${content}</strong>`;
+          return `<span class="md-inline-bold">${content}</span>`;
         case "italic":
-          return `<em>${content}</em>`;
+          return `<span class="md-inline-italic">${content}</span>`;
         case "code":
-          return `<code class="inline-code">${content}</code>`;
+          return `<span class="md-inline-code">${content}</span>`;
+        case "strike":
+          return `<span class="md-inline-strike">${content}</span>`;
         case "syntax":
           return `<span class="md-syntax">${content}</span>`;
         case "heading":

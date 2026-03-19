@@ -5,16 +5,8 @@ import React, { useRef, useEffect, useCallback } from "react";
 import { Block, PluginResult } from "./types";
 import { getPlugin } from "./plugins";
 import { DecorationLayer } from "./DecorationLayer";
-import { getCaretOffset, placeCaretAtEnd, placeCaretAtOffset, detectType } from "./utils";
-import { 
-  getSelectionOffsets, 
-  restoreSelectionOffsets, 
-  isCaretAtStart, 
-  isCaretAtEnd,
-  createDeltaTransform,
-  applyTextMutation,
-  SelectionTransform
-} from "./selection";
+import { placeCaretAtEnd, detectType } from "./utils";
+import { getSelectionOffsets, restoreSelectionOffsets } from "./selection";
 
 interface BlockWrapperProps {
   block: Block;
@@ -26,6 +18,8 @@ interface BlockWrapperProps {
   onDelete: (id: string) => void;
   registerRef: (id: string, ref: HTMLDivElement | null) => void;
 }
+
+type SelectionMapper = (start: number, end: number) => { start: number; end: number };
 
 export function BlockWrapper({
   block,
@@ -41,61 +35,79 @@ export function BlockWrapper({
   const lastTextRef = useRef<string>(block.raw);
   const isApplyingPluginRef = useRef<boolean>(false);
 
-  // Register ref with parent
   useEffect(() => {
     registerRef(block.id, editableRef.current);
     return () => registerRef(block.id, null);
   }, [block.id, registerRef]);
 
-  // Set initial content (only on mount or id change)
   useEffect(() => {
     if (!editableRef.current) return;
-
-    // Only set if different to avoid cursor jump
-    // Use textContent instead of innerText for accurate whitespace handling
     if (editableRef.current.textContent !== block.raw) {
       editableRef.current.textContent = block.raw;
       lastTextRef.current = block.raw;
     }
-  }, [block.id]);
+  }, [block.id, block.raw]);
 
-  // Apply plugin result
-  const applyPluginResult = useCallback(
-    (result: PluginResult, caretOffset?: number) => {
+  const applyTextMutation = useCallback(
+    (
+      nextText: string,
+      mapSelection?: SelectionMapper,
+      explicitCursorOffset?: number,
+      useAnimationFrame: boolean = false
+    ) => {
       if (!editableRef.current) return;
 
+      const root = editableRef.current;
+      const snapshot = getSelectionOffsets(root);
+      const restore = () => {
+        if (!editableRef.current) return;
+        if (explicitCursorOffset !== undefined) {
+          restoreSelectionOffsets(editableRef.current, explicitCursorOffset);
+          return;
+        }
+        if (snapshot.isInsideRoot) {
+          const mapped = mapSelection ? mapSelection(snapshot.start, snapshot.end) : snapshot;
+          restoreSelectionOffsets(editableRef.current, mapped.start, mapped.end);
+        } else {
+          placeCaretAtEnd(editableRef.current);
+        }
+      };
+
+      if (root.textContent !== nextText) {
+        root.textContent = nextText;
+      }
+      lastTextRef.current = nextText;
+
+      if (useAnimationFrame) {
+        requestAnimationFrame(restore);
+      } else {
+        restore();
+      }
+    },
+    []
+  );
+
+  const applyPluginResult = useCallback(
+    (result: PluginResult) => {
+      if (!editableRef.current) return;
       if (result.type === "none") return;
 
-      // Set flag to prevent handleInput from interfering
       isApplyingPluginRef.current = true;
 
       if (result.type === "update") {
-        // Store the text and cursor position
         const newText = result.text;
-        const offsetToUse = result.cursorOffset !== undefined ? result.cursorOffset : caretOffset;
-        
-        // Create a selection transform based on cursor offset
-        const transform: SelectionTransform = offsetToUse !== undefined
-          ? () => ({ start: offsetToUse, end: offsetToUse })
-          : (oldStart, oldEnd) => {
-              // If no cursor offset provided, place at end
-              const textLength = newText.length;
-              return { start: textLength, end: textLength };
-            };
-        
-        // Use applyTextMutation helper which handles selection preservation
-        // and avoids unnecessary textContent rewrites
-        applyTextMutation(editableRef.current, newText, transform);
-        lastTextRef.current = newText;
-        
-        // Reset flag after mutation is applied
-        isApplyingPluginRef.current = false;
+        applyTextMutation(newText, undefined, result.cursorOffset, true);
+        requestAnimationFrame(() => {
+          isApplyingPluginRef.current = false;
+        });
         onChange(block.id, newText);
+        return;
       }
 
       if (result.type === "split") {
         onSplit(block.id, result.before, result.after);
         isApplyingPluginRef.current = false;
+        return;
       }
 
       if (result.type === "merge") {
@@ -103,78 +115,79 @@ export function BlockWrapper({
         isApplyingPluginRef.current = false;
       }
     },
-    [block.id, onChange, onSplit, onMergeWithPrevious]
+    [applyTextMutation, block.id, onChange, onMergeWithPrevious, onSplit]
   );
 
-  // Handle input
   const handleInput = useCallback(() => {
     if (!editableRef.current || isApplyingPluginRef.current) return;
 
-    let text = editableRef.current.textContent || "";
+    const root = editableRef.current;
+    let text = root.textContent || "";
 
-    // Normalize - remove trailing newlines that browsers add
     if (text.endsWith("\n") && !block.raw.endsWith("\n")) {
       text = text.slice(0, -1);
     }
 
     const plugin = getPlugin(text, block.type);
 
-    // Apply normalization if plugin has it
     if (plugin.normalize) {
       const result = plugin.normalize(text);
-
       if (result.text !== text) {
-        // Use applyTextMutation helper which handles selection preservation
-        const transform = createDeltaTransform(result.delta);
-        applyTextMutation(editableRef.current!, result.text, transform);
         text = result.text;
+        const delta = result.delta;
+        applyTextMutation(
+          result.text,
+          (start, end) => ({
+            start: Math.max(0, start + delta),
+            end: Math.max(0, end + delta),
+          })
+        );
       }
     }
 
     lastTextRef.current = text;
     onChange(block.id, text);
-  }, [block.id, block.raw, block.type, onChange]);
+  }, [applyTextMutation, block.id, block.raw, block.type, onChange]);
 
-  // Handle keydown
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (!editableRef.current) return;
 
-      const text = editableRef.current.textContent || "";
-      const plugin = getPlugin(text, block.type);
-      
-      // Use logical selection helpers
-      const selectionSnapshot = getSelectionOffsets(editableRef.current);
+      const root = editableRef.current;
+      const sel = window.getSelection();
+      if (!sel) return;
 
-      // Enter key
+      const text = root.textContent || "";
+      const plugin = getPlugin(text, block.type);
+      const logicalSel = getSelectionOffsets(root);
+
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
 
         if (plugin.onEnter) {
-          const sel = window.getSelection();
           const result = plugin.onEnter({
             text,
-            selection: sel!,
-            root: editableRef.current,
+            selection: sel,
+            root,
           });
-
-          applyPluginResult(result, selectionSnapshot.start);
+          applyPluginResult(result);
         } else {
-          // Default split behavior
-          onSplit(block.id, text.slice(0, selectionSnapshot.start), text.slice(selectionSnapshot.start));
+          onSplit(block.id, text.slice(0, logicalSel.start), text.slice(logicalSel.start));
         }
         return;
       }
 
-      // Backspace at start - use logical selection check
-      if (e.key === "Backspace" && isCaretAtStart(editableRef.current)) {
-        // Check if plugin handles this
+      if (
+        e.key === "Backspace" &&
+        logicalSel.isInsideRoot &&
+        logicalSel.isCollapsed &&
+        logicalSel.start === 0
+      ) {
         if (plugin.onBackspace) {
-          const sel = window.getSelection();
           const result = plugin.onBackspace({
             text,
-            selection: sel!,
-            root: editableRef.current,
+            selection: sel,
+            root,
           });
 
           if (result.type !== "none") {
@@ -184,35 +197,39 @@ export function BlockWrapper({
           }
         }
 
-        // Merge with previous block
+        e.preventDefault();
         if (text.length === 0) {
-          e.preventDefault();
           onDelete(block.id);
         } else {
-          e.preventDefault();
           onMergeWithPrevious(block.id);
         }
         return;
       }
 
-      // Arrow up at start
-      if (e.key === "ArrowUp" && isCaretAtStart(editableRef.current)) {
+      if (
+        e.key === "ArrowUp" &&
+        logicalSel.isInsideRoot &&
+        logicalSel.isCollapsed &&
+        logicalSel.start === 0
+      ) {
         e.preventDefault();
         onFocusPrevious(block.id, true);
         return;
       }
 
-      // Arrow down at end
-      if (e.key === "ArrowDown" && isCaretAtEnd(editableRef.current)) {
+      if (
+        e.key === "ArrowDown" &&
+        logicalSel.isInsideRoot &&
+        logicalSel.isCollapsed &&
+        logicalSel.end === text.length
+      ) {
         e.preventDefault();
         onFocusNext(block.id);
-        return;
       }
     },
-    [block.id, block.type, applyPluginResult, onSplit, onDelete, onMergeWithPrevious, onFocusNext, onFocusPrevious]
+    [block.id, block.type, applyPluginResult, onDelete, onFocusNext, onFocusPrevious, onMergeWithPrevious, onSplit]
   );
 
-  // Get block styles based on type
   const getBlockStyle = (): React.CSSProperties => {
     const currentType = detectType(block.raw);
 
@@ -223,7 +240,7 @@ export function BlockWrapper({
 
     switch (currentType) {
       case "heading": {
-        const level = (block.raw.match(/^(#+)/)?.[1].length || 1);
+        const level = block.raw.match(/^(#+)/)?.[1].length || 1;
         const sizes: Record<number, string> = {
           1: "2em",
           2: "1.5em",
@@ -268,7 +285,6 @@ export function BlockWrapper({
 
   const blockStyle = getBlockStyle();
 
-  // Get heading level for data attribute
   const getHeadingLevel = () => {
     if (block.type === "heading") {
       const match = block.raw.match(/^(#+)/);
@@ -280,13 +296,12 @@ export function BlockWrapper({
   const headingLevel = getHeadingLevel();
 
   return (
-    <div 
-      style={{ position: "relative" }} 
+    <div
+      style={{ position: "relative", ...blockStyle }}
       data-block-id={block.id}
       data-block-type={block.type}
       data-heading-level={headingLevel}
     >
-      {/* Decoration Layer - visual only, not editable */}
       <div
         className="md-decorations"
         aria-hidden="true"
@@ -303,7 +318,6 @@ export function BlockWrapper({
         <DecorationLayer text={block.raw} blockType={detectType(block.raw)} />
       </div>
 
-      {/* Editable Layer - user types here */}
       <div
         ref={editableRef}
         contentEditable

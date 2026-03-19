@@ -2,6 +2,7 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 import { BlockWrapper } from './BlockWrapper';
 import { Block } from './types';
+import { restoreSelectionOffsets } from './selection';
 
 // Mock the utils functions
 jest.mock('./utils', () => ({
@@ -36,6 +37,77 @@ jest.mock('./plugins', () => ({
     onBackspace: undefined,
   })),
 }));
+
+
+function renderBlock(raw: string) {
+  const onChange = jest.fn();
+  const onSplit = jest.fn();
+  const onMergeWithPrevious = jest.fn();
+  const onFocusNext = jest.fn();
+  const onFocusPrevious = jest.fn();
+  const onDelete = jest.fn();
+  const registerRef = jest.fn();
+
+  const utils = render(
+    <BlockWrapper
+      block={{ id: 'b1', type: 'paragraph', raw }}
+      onChange={onChange}
+      onSplit={onSplit}
+      onMergeWithPrevious={onMergeWithPrevious}
+      onFocusNext={onFocusNext}
+      onFocusPrevious={onFocusPrevious}
+      onDelete={onDelete}
+      registerRef={registerRef}
+    />
+  );
+
+  const editable = utils.container.querySelector('.md-editable') as HTMLDivElement;
+  editable.textContent = raw;
+
+  return {
+    ...utils,
+    editable,
+    onChange,
+    onSplit,
+    onMergeWithPrevious,
+    onFocusNext,
+    onFocusPrevious,
+    onDelete,
+  };
+}
+
+describe('BlockWrapper0', () => {
+  it('does not merge block on Backspace when caret is inside inline markdown paragraph', () => {
+    const { editable, onMergeWithPrevious, onDelete } = renderBlock(
+      'This is a **Notion-style Markdown editor** built with Rea1ct. E'
+    );
+
+    restoreSelectionOffsets(editable, 56);
+    fireEvent.keyDown(editable, { key: 'Backspace' });
+
+    expect(onMergeWithPrevious).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('merges block on Backspace only at true logical offset 0', () => {
+    const { editable, onMergeWithPrevious } = renderBlock('**bold**');
+
+    restoreSelectionOffsets(editable, 0);
+    fireEvent.keyDown(editable, { key: 'Backspace' });
+
+    expect(onMergeWithPrevious).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not use block-start Backspace path for non-collapsed selection', () => {
+    const { editable, onMergeWithPrevious, onDelete } = renderBlock('**bold** text');
+
+    restoreSelectionOffsets(editable, 0, 4);
+    fireEvent.keyDown(editable, { key: 'Backspace' });
+
+    expect(onMergeWithPrevious).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+});
 
 describe('BlockWrapper', () => {
   const mockOnChange = jest.fn();

@@ -1,9 +1,7 @@
-// Core types for the Notion-style Markdown editor
-
 export type Block = {
   id: string;
   type: string;
-  raw: string; // last synced value (not live)
+  raw: string;
 };
 
 export type EditorState = {
@@ -16,7 +14,6 @@ export type LogicalSelection = {
   focus: number;
 };
 
-// Plugin System Types
 export type PluginCtx = {
   text: string;
   selection: Selection;
@@ -45,16 +42,13 @@ export type BlockPlugin = {
   decorate?(text: string): Decoration[];
 };
 
-// Token types for decoration
 export type Token = {
-  type: "text" | "bold" | "italic" | "code" | "syntax" | "heading" | "link";
+  type: "text" | "bold" | "italic" | "code" | "strike" | "syntax" | "heading" | "link";
   content: string;
 };
 
-// Theme types
 export type Theme = "light" | "dark" | "auto";
 
-// Editor Props
 export type MicroMDEditorProps = {
   initialMarkdown?: string;
   onChange?: (markdown: string) => void;

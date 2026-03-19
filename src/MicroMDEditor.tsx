@@ -241,20 +241,28 @@ export function MicroMDEditor({
           opacity: var(--mmd-syntax-opacity);
         }
 
-        .micro-md-editor .md-decorations strong {
-          font-weight: bold;
+        .micro-md-editor .md-decorations .md-inline-bold {
+          font: inherit;
+          text-shadow: 0.02em 0 currentColor, -0.02em 0 currentColor;
         }
 
-        .micro-md-editor .md-decorations em {
-          font-style: italic;
+        .micro-md-editor .md-decorations .md-inline-italic {
+          font: inherit;
+          display: inline-block;
+          transform: skewX(-10deg);
+          transform-origin: left bottom;
         }
 
-        .micro-md-editor .md-decorations .inline-code {
-          font-family: monospace;
+        .micro-md-editor .md-decorations .md-inline-code {
+          font: inherit;
           background: var(--mmd-code-bg);
           color: var(--mmd-code-text);
-          padding: 2px 4px;
           border-radius: 3px;
+        }
+
+        .micro-md-editor .md-decorations .md-inline-strike {
+          font: inherit;
+          text-decoration: line-through;
         }
 
         .micro-md-editor .md-decorations .md-link {
