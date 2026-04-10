@@ -1,4 +1,3 @@
-import React from "react";
 import { Token } from "./types";
 import { tokenize } from "./tokenizer";
 

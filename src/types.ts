@@ -49,10 +49,12 @@ export type Token = {
 
 export type Theme = "light" | "dark" | "auto";
 
+export type EditorStyle = Record<string, string | number | undefined>;
+
 export type MicroMDEditorProps = {
   initialMarkdown?: string;
   onChange?: (markdown: string) => void;
   className?: string;
-  style?: React.CSSProperties;
+  style?: EditorStyle;
   theme?: Theme;
 };

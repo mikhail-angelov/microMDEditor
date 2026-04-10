@@ -1,7 +1,7 @@
 // MicroMDEditor - Main editor component
 // Notion-style architecture: React controls structure, browser controls content
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Block, MicroMDEditorProps } from "./types";
 import { BlockWrapper } from "./BlockWrapper";
 import { parseMarkdown, blocksToMarkdown, genId, detectType, placeCaretAtEnd, placeCaretAtOffset } from "./utils";

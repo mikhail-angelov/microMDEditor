@@ -1,7 +1,8 @@
 // BlockWrapper - React-safe boundary for contentEditable blocks
 // Uses two-layer approach: decoration layer (visual) + editable layer (input)
 
-import React, { useRef, useEffect, useCallback } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { Block, PluginResult } from "./types";
 import { getPlugin } from "./plugins";
 import { DecorationLayer } from "./DecorationLayer";
@@ -182,7 +183,7 @@ export function BlockWrapper({
   }, [block.id, block.raw, block.type, onChange]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
       if (!editableRef.current) return;
 
       const text = editableRef.current.textContent || "";

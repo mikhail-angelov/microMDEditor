@@ -66,6 +66,27 @@ function App() {
 }
 ```
 
+### Preact
+
+Use the dedicated Preact entry if your app runs on Preact:
+
+```tsx
+import { useState } from 'preact/hooks';
+import { MicroMDEditor } from 'micro-md-editor/preact';
+
+function App() {
+  const [markdown, setMarkdown] = useState('# Hello Preact');
+
+  return (
+    <MicroMDEditor
+      initialMarkdown={markdown}
+      onChange={setMarkdown}
+      theme="light"
+    />
+  );
+}
+```
+
 ## 🎨 Props
 
 | Prop | Type | Default | Description |
