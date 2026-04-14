@@ -55,23 +55,21 @@ export const replaceBlockRange = (
     throw new Error('Block range start must not come after the end');
   }
 
+  if (startIndex === endIndex && range.start.offset > range.end.offset) {
+    throw new Error('Block range offsets are invalid for a single block');
+  }
+
   const startBlock = blocks[startIndex];
   const endBlock = blocks[endIndex];
   const prefix = startBlock.raw.slice(0, range.start.offset);
   const suffix = endBlock.raw.slice(range.end.offset);
 
   const parsed = parseMarkdown(pastedText);
-  if (parsed.length === 0) {
-    parsed.push({
-      id: startBlock.id,
-      raw: `${prefix}${suffix}`,
-      type: detectType(`${prefix}${suffix}`),
-    } as Block);
-  }
   const lastIndex = parsed.length - 1;
   const lastInsertedRawLength = parsed[lastIndex]?.raw.length ?? 0;
 
   const hasSingleBlock = lastIndex === 0;
+  const reuseEndBlockId = startIndex !== endIndex;
 
   const mergedBlocks: Block[] = hasSingleBlock
     ? [
@@ -94,11 +92,12 @@ export const replaceBlockRange = (
     };
 
     const lastRaw = `${mergedBlocks[lastIndex].raw}${suffix}`;
+    const lastBlockId = reuseEndBlockId ? endBlock.id : mergedBlocks[lastIndex].id;
     mergedBlocks[lastIndex] = {
       ...mergedBlocks[lastIndex],
       raw: lastRaw,
       type: detectType(lastRaw),
-      id: endBlock.id,
+      id: lastBlockId,
     };
   }
 

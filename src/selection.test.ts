@@ -228,4 +228,47 @@ describe('selection helpers', () => {
     expect(result.caret.blockId).toBe(result.blocks[0].id);
     expect(result.caret.offset).toBe('Hello inserted'.length);
   });
+
+  it('replaces part of a single block with multiline paste and keeps unique ids', () => {
+    const blocks = [{ id: 'b1', type: 'paragraph', raw: 'Hello world' }];
+    const range: BlockRange = {
+      start: { blockId: 'b1', offset: 6 },
+      end: { blockId: 'b1', offset: 11 },
+      isCollapsed: false,
+    };
+
+    const result = replaceBlockRange(blocks, range, 'inserted\nsecond\nthird');
+
+    expect(result.blocks.map((block) => block.raw)).toEqual(['Hello inserted', 'second', 'third']);
+    expect(result.blocks[0].id).toBe('b1');
+    const ids = result.blocks.map((block) => block.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('caret lands on last inserted block after multiline paste', () => {
+    const blocks = [{ id: 'b1', type: 'paragraph', raw: 'Hello world' }];
+    const range: BlockRange = {
+      start: { blockId: 'b1', offset: 6 },
+      end: { blockId: 'b1', offset: 11 },
+      isCollapsed: false,
+    };
+
+    const result = replaceBlockRange(blocks, range, 'inserted\nsecond\nthird');
+
+    expect(result.caret.blockId).toBe(result.blocks[result.blocks.length - 1].id);
+    expect(result.caret.offset).toBe('third'.length);
+  });
+
+  it('throws when replaceBlockRange receives reversed offsets within the same block', () => {
+    const blocks = [{ id: 'b1', type: 'paragraph', raw: 'Hello world' }];
+    const range: BlockRange = {
+      start: { blockId: 'b1', offset: 8 },
+      end: { blockId: 'b1', offset: 4 },
+      isCollapsed: false,
+    };
+
+    expect(() => replaceBlockRange(blocks, range, 'inserted')).toThrow(
+      'Block range offsets are invalid for a single block',
+    );
+  });
 });
