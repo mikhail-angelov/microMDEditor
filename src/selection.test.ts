@@ -1,6 +1,6 @@
-import { getSelectionOffsets, restoreSelectionOffsets } from './selection';
+import { getEditorSelectionRange, getSelectionOffsets, restoreSelectionOffsets } from './selection';
 import { serializeBlockRange, replaceBlockRange } from './clipboard';
-import type { BlockRange } from './types';
+import type { BlockRange, RegisteredBlockRoot } from './types';
 
 describe('selection helpers', () => {
   beforeEach(() => {
@@ -270,5 +270,79 @@ describe('selection helpers', () => {
     expect(() => replaceBlockRange(blocks, range, 'inserted')).toThrow(
       'Block range offsets are invalid for a single block',
     );
+  });
+
+  it('resolves a selection spanning two block roots into a forward BlockRange', () => {
+    const editorRoot = document.createElement('div');
+    const block1 = document.createElement('div');
+    const block2 = document.createElement('div');
+    block1.textContent = 'Hello';
+    block2.textContent = 'World';
+    editorRoot.append(block1, block2);
+    document.body.append(editorRoot);
+
+    const roots: RegisteredBlockRoot[] = [
+      { id: 'b1', element: block1 },
+      { id: 'b2', element: block2 },
+    ];
+
+    const selection = {
+      rangeCount: 1,
+      anchorNode: block1.firstChild,
+      anchorOffset: 2,
+      focusNode: block2.firstChild,
+      focusOffset: 3,
+      isCollapsed: false,
+    } as Selection;
+
+    Object.defineProperty(window, 'getSelection', {
+      writable: true,
+      value: jest.fn(() => selection),
+    });
+
+    const range = getEditorSelectionRange(editorRoot, roots);
+
+    expect(range).toEqual({
+      start: { blockId: 'b1', offset: 2 },
+      end: { blockId: 'b2', offset: 3 },
+      isCollapsed: false,
+    });
+  });
+
+  it('normalizes backward selections into forward block order', () => {
+    const editorRoot = document.createElement('div');
+    const block1 = document.createElement('div');
+    const block2 = document.createElement('div');
+    block1.textContent = 'Hello';
+    block2.textContent = 'World';
+    editorRoot.append(block1, block2);
+    document.body.append(editorRoot);
+
+    const roots: RegisteredBlockRoot[] = [
+      { id: 'b1', element: block1 },
+      { id: 'b2', element: block2 },
+    ];
+
+    const selection = {
+      rangeCount: 1,
+      anchorNode: block2.firstChild,
+      anchorOffset: 4,
+      focusNode: block1.firstChild,
+      focusOffset: 1,
+      isCollapsed: false,
+    } as Selection;
+
+    Object.defineProperty(window, 'getSelection', {
+      writable: true,
+      value: jest.fn(() => selection),
+    });
+
+    const range = getEditorSelectionRange(editorRoot, roots);
+
+    expect(range).toEqual({
+      start: { blockId: 'b1', offset: 1 },
+      end: { blockId: 'b2', offset: 4 },
+      isCollapsed: false,
+    });
   });
 });

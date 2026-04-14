@@ -1,6 +1,7 @@
 // Selection utilities for logical selection handling
 // Works in plain-text coordinates for the raw contentEditable layer.
 
+import type { BlockPoint, BlockRange, RegisteredBlockRoot } from './types';
 import { placeCaretAtOffset } from './utils';
 
 export type LogicalSelectionSnapshot = {
@@ -15,6 +16,22 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function nodeOffsetWithinRoot(root: HTMLElement, targetNode: Node, targetOffset: number): number {
+  if (targetNode.nodeType === Node.TEXT_NODE) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let currentOffset = 0;
+    let node: Text | null = null;
+
+    while ((node = walker.nextNode() as Text | null)) {
+      const nodeLength = node.textContent?.length || 0;
+      if (node === targetNode) {
+        return currentOffset + targetOffset;
+      }
+      currentOffset += nodeLength;
+    }
+
+    return currentOffset;
+  }
+
   const range = document.createRange();
   range.selectNodeContents(root);
   range.setEnd(targetNode, targetOffset);
@@ -23,6 +40,62 @@ function nodeOffsetWithinRoot(root: HTMLElement, targetNode: Node, targetOffset:
 
 function isNodeInsideRoot(root: HTMLElement, node: Node | null): boolean {
   return !!node && (node === root || root.contains(node));
+}
+
+function isSelectionInsideRoot(root: HTMLElement, selection: Selection): boolean {
+  return isNodeInsideRoot(root, selection.anchorNode) && isNodeInsideRoot(root, selection.focusNode);
+}
+
+function findRegisteredRoot(
+  editorRoot: HTMLElement,
+  node: Node | null,
+  rootByElement: Map<HTMLElement, RegisteredBlockRoot>
+): RegisteredBlockRoot | null {
+  let current: Node | null = node;
+
+  while (current && current !== editorRoot) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      const match = rootByElement.get(current as HTMLElement);
+      if (match) {
+        return match;
+      }
+    }
+    current = current.parentNode;
+  }
+
+  return null;
+}
+
+function resolveBlockPoint(
+  root: RegisteredBlockRoot,
+  node: Node,
+  offset: number
+): BlockPoint {
+  return {
+    blockId: root.id,
+    offset: nodeOffsetWithinRoot(root.element, node, offset),
+  };
+}
+
+function isForwardSelection(
+  anchorRoot: RegisteredBlockRoot,
+  focusRoot: RegisteredBlockRoot,
+  anchorOffset: number,
+  focusOffset: number,
+  rootOrder: Map<HTMLElement, number>
+): boolean {
+  const anchorIndex = rootOrder.get(anchorRoot.element);
+  const focusIndex = rootOrder.get(focusRoot.element);
+
+  if (anchorIndex === undefined || focusIndex === undefined) {
+    return true;
+  }
+
+  if (anchorIndex !== focusIndex) {
+    return anchorIndex < focusIndex;
+  }
+
+  return anchorOffset <= focusOffset;
 }
 
 function resolveTextPosition(root: HTMLElement, offset: number): { node: Node; offset: number } {
@@ -175,4 +248,65 @@ export function applyTextMutation(
     const newSelection = mapSelection(snapshot.start, snapshot.end);
     restoreSelectionOffsets(root, newSelection.start, newSelection.end);
   }
+}
+
+export function getEditorSelectionRange(
+  editorRoot: HTMLElement,
+  roots: RegisteredBlockRoot[]
+): BlockRange | null {
+  const selection = window.getSelection();
+
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  if (!isSelectionInsideRoot(editorRoot, selection)) {
+    return null;
+  }
+
+  if (!selection.anchorNode || !selection.focusNode) {
+    return null;
+  }
+
+  const rootByElement = new Map<HTMLElement, RegisteredBlockRoot>(
+    roots.map((root) => [root.element, root])
+  );
+  const rootOrder = new Map<HTMLElement, number>(
+    roots.map((root, index) => [root.element, index])
+  );
+
+  const anchorRoot = findRegisteredRoot(editorRoot, selection.anchorNode, rootByElement);
+  const focusRoot = findRegisteredRoot(editorRoot, selection.focusNode, rootByElement);
+
+  if (!anchorRoot || !focusRoot) {
+    return null;
+  }
+
+  const anchorPoint = resolveBlockPoint(
+    anchorRoot,
+    selection.anchorNode,
+    selection.anchorOffset
+  );
+  const focusPoint = resolveBlockPoint(
+    focusRoot,
+    selection.focusNode,
+    selection.focusOffset
+  );
+
+  const forward = isForwardSelection(
+    anchorRoot,
+    focusRoot,
+    anchorPoint.offset,
+    focusPoint.offset,
+    rootOrder
+  );
+
+  const start = forward ? anchorPoint : focusPoint;
+  const end = forward ? focusPoint : anchorPoint;
+
+  return {
+    start,
+    end,
+    isCollapsed: start.blockId === end.blockId && start.offset === end.offset,
+  };
 }

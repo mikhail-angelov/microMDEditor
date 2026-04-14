@@ -70,6 +70,11 @@ export type BlockRange = {
   isCollapsed: boolean;
 };
 
+export type RegisteredBlockRoot = {
+  id: string;
+  element: HTMLElement;
+};
+
 export type ClipboardReplaceResult = {
   blocks: Block[];
   caret: BlockPoint;
