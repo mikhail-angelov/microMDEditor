@@ -102,24 +102,24 @@ export const QuotePlugin: BlockPlugin = {
   normalize(text: string): { text: string; delta: number } {
     const lines = text.split("\n");
     let totalDelta = 0;
-    
+
     const normalizedLines = lines.map((line) => {
       if (line.trim() === "") {
         // Empty line becomes "> " - adds 2 characters
         totalDelta += 2;
         return "> ";
       }
-      
+
       if (line.startsWith(">")) {
         // Already starts with >, no change
         return line;
       }
-      
+
       // Add "> " prefix - adds 2 characters
       totalDelta += 2;
       return `> ${line}`;
     });
-    
+
     return {
       text: normalizedLines.join("\n"),
       delta: totalDelta,
@@ -169,24 +169,24 @@ export const ListPlugin: BlockPlugin = {
   normalize(text: string): { text: string; delta: number } {
     const lines = text.split("\n");
     let totalDelta = 0;
-    
+
     const normalizedLines = lines.map((line) => {
       if (line.trim() === "") {
         // Empty line becomes "- " - adds 2 characters
         totalDelta += 2;
         return "- ";
       }
-      
+
       if (/^[-*]\s/.test(line)) {
         // Already starts with - or *, no change
         return line;
       }
-      
+
       // Add "- " prefix - adds 2 characters
       totalDelta += 2;
       return `- ${line}`;
     });
-    
+
     return {
       text: normalizedLines.join("\n"),
       delta: totalDelta,
@@ -195,9 +195,36 @@ export const ListPlugin: BlockPlugin = {
 
   onEnter(ctx: PluginCtx): PluginResult {
     const offset = getCaretOffset(ctx.root, ctx.selection);
+    const { lineStart, lineEnd, line } = getCurrentLineBounds(ctx.text, offset);
 
     const before = ctx.text.slice(0, offset);
     const after = ctx.text.slice(offset);
+
+    // Check if we're at the end of an empty list item
+    if (/^[-*]\s?$/.test(line) && offset >= lineStart + line.length) {
+      // If it's the last line in the block, convert to paragraph (remove marker)
+      // Otherwise, remove the entire line (old behavior)
+      if (lineEnd === ctx.text.length) {
+        // Last line: convert to paragraph by removing just the marker
+        const markerLength = line.endsWith(" ") ? 3 : 2;
+        const newText =
+          ctx.text.slice(0, lineStart - 1) +
+          ctx.text.slice(lineStart + markerLength);
+
+        return {
+          type: "split",
+          before: newText,
+          after: "",
+        };
+      }
+      // Not last line: remove the entire line (old behavior)
+      const result = removeCurrentLine(ctx.text, lineStart, lineEnd);
+      return {
+        type: "update",
+        text: result.text,
+        cursorOffset: result.cursorOffset,
+      };
+    }
 
     // Add newline with list prefix
     const newText = before + "\n- " + after;
@@ -216,14 +243,88 @@ export const ListPlugin: BlockPlugin = {
     const { text } = ctx;
     const offset = getCaretOffset(ctx.root, ctx.selection);
     const { lineStart, lineEnd, line } = getCurrentLineBounds(text, offset);
-
+    
+    // Check if we're at the end of an empty list item
     if (/^[-*]\s?$/.test(line) && offset >= lineStart + line.length) {
+      // If it's the last line in the block, convert to paragraph (remove marker)
+      // Otherwise, remove the entire line (old behavior)
+      if (lineEnd === text.length) {
+        // If it's the last and only line in the block
+        if (lineStart === 0) {
+          return {
+            type: "update",
+            text: "",
+            cursorOffset: 0, // Fixed: cursor should be at position 0, not 2
+          };
+        }
+        // Last line: convert to paragraph by removing just the marker
+        // Need to remove newline before the line too
+        const markerLength = line.endsWith(" ") ? 2 : 1;
+        const newText = text.slice(0, lineStart - 1) + text.slice(lineStart + markerLength);
+        return {
+          type: "split",
+          before: newText,
+          after: "",
+        };
+      }
+      // Not last line: remove the entire line (old behavior)
       const result = removeCurrentLine(text, lineStart, lineEnd);
       return {
         type: "update",
         text: result.text,
         cursorOffset: result.cursorOffset,
       };
+    }
+    
+    // Handle Backspace at beginning of text in list item (cursor right after marker)
+    // Example: "- text" with cursor between "- " and "text" (offset = lineStart + 2)
+    // Should delete the space, resulting in "-text"
+    // Example: "-text" (no space) with cursor between "-" and "t" (offset = lineStart + 1)
+    // Should delete the "-" marker, resulting in "text"
+    if (line.length > 0 && (line[0] === "-" || line[0] === "*")) {
+      const cursorInLine = offset - lineStart;
+
+      // Cursor is right after marker (position 1 for "-" or 2 for "- ")
+      if (cursorInLine === 1) {
+        // Cursor right after "-" (could be "-text" or "- text")
+        if (line.length > 1 && line[1] === " ") {
+          // "- text": delete the space
+          const newLine = "-" + line.slice(2);
+          const newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          return {
+            type: "update",
+            text: newText,
+            cursorOffset: lineStart + 1, // Cursor stays after "-"
+          };
+        } else {
+          // "-text": delete the "-" marker
+          const newLine = line.slice(1);
+          if (lineStart === 0) {
+            // First line: split from rest of list
+            const newList = text.slice(lineEnd);
+            return {
+              type: "split",
+              before: newLine,
+              after: newList,
+            };
+          }
+          const newText = text.slice(0, lineStart - 1) + newLine + text.slice(lineEnd);
+          return {
+            type: "update",
+            text: newText,
+            cursorOffset: lineStart - 1, // Cursor at beginning of line (where "-" was)
+          };
+        }
+      } else if (cursorInLine === 2 && line.length >= 2 && line[1] === " ") {
+        // Cursor after "- " (space exists)
+        const newLine = "-" + line.slice(2); // Remove the space
+        const newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+        return {
+          type: "update",
+          text: newText,
+          cursorOffset: lineStart + 1, // Cursor after "-"
+        };
+      }
     }
 
     return { type: "none" };
@@ -242,18 +343,49 @@ export const OrderedListPlugin: BlockPlugin = {
 
   onEnter(ctx: PluginCtx): PluginResult {
     const offset = getCaretOffset(ctx.root, ctx.selection);
+    const { lineStart, lineEnd, line } = getCurrentLineBounds(ctx.text, offset);
 
     const before = ctx.text.slice(0, offset);
     const after = ctx.text.slice(offset);
 
+    // Check if we're at the end of an empty ordered list item
+    if (/^\d+\.\s?$/.test(line) && offset >= lineStart + line.length) {
+      // If it's the last line in the block, convert to paragraph (remove marker)
+      // Otherwise, remove the entire line (old behavior)
+      if (lineEnd === ctx.text.length) {
+        // Last line: convert to paragraph by removing just the marker
+        const match = line.match(/^(\d+)(\.)(\s?)/);
+        if (match) {
+          const [fullMatch, number, dot, space] = match;
+          const markerLength = number.length + dot.length + (space ? 1 : 0);
+          const newText =
+            ctx.text.slice(0, lineStart) +
+            ctx.text.slice(lineStart + markerLength);
+          return {
+            type: "update",
+            text: newText,
+            cursorOffset: lineStart, // Cursor stays at beginning of line
+          };
+        }
+      } else {
+        // Not last line: remove the entire line (old behavior)
+        const result = removeCurrentLine(ctx.text, lineStart, lineEnd);
+        return {
+          type: "update",
+          text: result.text,
+          cursorOffset: result.cursorOffset,
+        };
+      }
+    }
+
     // Extract current number and increment
     const match = ctx.text.match(/^(\d+)\./);
     const nextNum = match ? parseInt(match[1], 10) + 1 : 1;
-    
+
     // Calculate prefix length (e.g., "1. " is 3 chars, "10. " is 4 chars)
     const prefixLength = `${nextNum}. `.length;
     const newText = before + `\n${nextNum}. ` + after;
-    
+
     return {
       type: "update",
       text: newText,
@@ -270,13 +402,78 @@ export const OrderedListPlugin: BlockPlugin = {
     const offset = getCaretOffset(ctx.root, ctx.selection);
     const { lineStart, lineEnd, line } = getCurrentLineBounds(text, offset);
 
+    // Check if we're at the end of an empty ordered list item
     if (/^\d+\.\s?$/.test(line) && offset >= lineStart + line.length) {
-      const result = removeCurrentLine(text, lineStart, lineEnd);
-      return {
-        type: "update",
-        text: result.text,
-        cursorOffset: result.cursorOffset,
-      };
+      // If it's the last line in the block, convert to paragraph (remove marker)
+      // Otherwise, remove the entire line (old behavior)
+      if (lineEnd === text.length) {
+        // Last line: convert to paragraph by removing just the marker
+        const match = line.match(/^(\d+)(\.)(\s?)/);
+        if (match) {
+          const [fullMatch, number, dot, space] = match;
+          const markerLength = number.length + dot.length + (space ? 1 : 0);
+          const newText =
+            text.slice(0, lineStart) + text.slice(lineStart + markerLength);
+          return {
+            type: "update",
+            text: newText,
+            cursorOffset: lineStart, // Cursor stays at beginning of line
+          };
+        }
+      } else {
+        // Not last line: remove the entire line (old behavior)
+        const result = removeCurrentLine(text, lineStart, lineEnd);
+        return {
+          type: "update",
+          text: result.text,
+          cursorOffset: result.cursorOffset,
+        };
+      }
+    }
+    
+    // Handle Backspace at beginning of text in ordered list item
+    // Example: "1. text" with cursor between "1. " and "text"
+    // Should delete the space, resulting in "1.text"
+    if (line.length > 0 && /^\d+\./.test(line)) {
+      const cursorInLine = offset - lineStart;
+      const match = line.match(/^(\d+)(\.)(\s?)/);
+      
+      if (match) {
+        const [fullMatch, number, dot, space] = match;
+        const prefixLength = number.length + dot.length + (space ? 1 : 0);
+        
+        // Cursor is right after the prefix (after "1." or "1. ")
+        if (cursorInLine === prefixLength) {
+          // Delete the space if it exists
+          if (space) {
+            const newLine = number + dot + line.slice(prefixLength);
+            const newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+            return {
+              type: "update",
+              text: newText,
+              cursorOffset: lineStart + number.length + dot.length, // Cursor after "1."
+            };
+          }
+        } else if (cursorInLine === number.length + dot.length && !space) {
+          // Cursor right after "1." (no space), delete the "."
+          const newLine = number + line.slice(number.length + dot.length);
+          if (lineStart === 0) {
+            // First line: split from rest of list
+            const newList = text.slice(lineEnd);
+            return {
+              type: "split",
+              before: newLine,
+              after: newList,
+            };
+          }
+          const newText = text.slice(0, lineStart - 1) + newLine + text.slice(lineEnd);
+          return {
+            type: "update",
+            text: newText,
+            cursorOffset: lineStart - 1, // Cursor at beginning of line
+          };
+        }
+      }
     }
 
     return { type: "none" };
@@ -293,15 +490,15 @@ export const CodeBlockPlugin: BlockPlugin = {
     // Check if text starts with ``` (opening marker)
     // OR if it contains ``` anywhere (could be multi-line code block)
     // We need to handle multi-line code blocks as atomic blocks
-    const lines = text.split('\n');
-    
+    const lines = text.split("\n");
+
     // If any line starts with ```, treat as code block
     for (const line of lines) {
-      if (line.trim().startsWith('```')) {
+      if (line.trim().startsWith("```")) {
         return true;
       }
     }
-    
+
     return false;
   },
 
@@ -316,28 +513,28 @@ export const CodeBlockPlugin: BlockPlugin = {
     const after = ctx.text.slice(offset);
 
     // Find the current line in 'before'
-    const lines = before.split('\n');
+    const lines = before.split("\n");
     const currentLine = lines[lines.length - 1];
-    
+
     // For code blocks, we need to handle lines with ``` markers specially
     // Check if line contains ``` (could be opening or closing marker)
     // We need to check if the line (after trimming whitespace) starts with ```
     const trimmedLine = currentLine.trim();
-    let indentation = '';
-    
+    let indentation = "";
+
     // Only calculate indentation if this is not a ``` marker line
-    if (!trimmedLine.startsWith('```')) {
+    if (!trimmedLine.startsWith("```")) {
       // Calculate indentation of current line (only whitespace at start)
       const match = currentLine.match(/^(\s*)/);
-      indentation = match ? match[1] : '';
+      indentation = match ? match[1] : "";
     }
-    
+
     // Insert newline with preserved indentation (if any)
     const newText = before + "\n" + indentation + after;
-    
+
     // Calculate cursor position (after newline and indentation)
     const cursorOffset = before.length + 1 + indentation.length;
-    
+
     return {
       type: "update",
       text: newText,
@@ -386,7 +583,7 @@ export function getPlugin(text: string, currentType?: string): BlockPlugin {
       }
     }
   }
-  
+
   // Otherwise, find the first matching plugin
   return plugins.find((p) => p.match(text)) || ParagraphPlugin;
 }
