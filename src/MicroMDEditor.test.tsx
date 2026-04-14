@@ -53,7 +53,11 @@ const sampleRange: BlockRange = {
   isCollapsed: false,
 };
 
-expect(sampleRange.start.blockId).toBe('b1');
+describe('BlockRange types', () => {
+  it('can be instantiated via the exported shapes', () => {
+    expect(sampleRange.start.blockId).toBe('b1');
+  });
+});
 
 describe('MicroMDEditor', () => {
   const mockOnChange = jest.fn();
