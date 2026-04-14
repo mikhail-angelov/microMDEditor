@@ -345,4 +345,41 @@ describe('selection helpers', () => {
       isCollapsed: false,
     });
   });
+
+  it('resolves root-level boundary selections to block boundaries', () => {
+    const editorRoot = document.createElement('div');
+    const block1 = document.createElement('div');
+    const block2 = document.createElement('div');
+    block1.textContent = 'Hello';
+    block2.textContent = 'World';
+    editorRoot.append(block1, block2);
+    document.body.append(editorRoot);
+
+    const roots: RegisteredBlockRoot[] = [
+      { id: 'b1', element: block1 },
+      { id: 'b2', element: block2 },
+    ];
+
+    const selection = {
+      rangeCount: 1,
+      anchorNode: editorRoot,
+      anchorOffset: 0,
+      focusNode: block2.firstChild,
+      focusOffset: 3,
+      isCollapsed: false,
+    } as Selection;
+
+    Object.defineProperty(window, 'getSelection', {
+      writable: true,
+      value: jest.fn(() => selection),
+    });
+
+    const range = getEditorSelectionRange(editorRoot, roots);
+
+    expect(range).toEqual({
+      start: { blockId: 'b1', offset: 0 },
+      end: { blockId: 'b2', offset: 3 },
+      isCollapsed: false,
+    });
+  });
 });

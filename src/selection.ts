@@ -77,6 +77,72 @@ function resolveBlockPoint(
   };
 }
 
+function resolveRootBoundaryPoint(
+  editorRoot: HTMLElement,
+  roots: RegisteredBlockRoot[],
+  boundaryOffset: number,
+  rootByElement: Map<HTMLElement, RegisteredBlockRoot>
+): BlockPoint | null {
+  if (roots.length === 0) {
+    return null;
+  }
+
+  const childCount = editorRoot.childNodes.length;
+  const first = roots[0];
+  const last = roots[roots.length - 1];
+
+  if (boundaryOffset <= 0) {
+    return { blockId: first.id, offset: 0 };
+  }
+
+  if (boundaryOffset >= childCount) {
+    return { blockId: last.id, offset: last.element.textContent?.length || 0 };
+  }
+
+  let lastSeenRoot: RegisteredBlockRoot | null = null;
+
+  for (let index = 0; index < editorRoot.childNodes.length; index += 1) {
+    const child = editorRoot.childNodes[index];
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      const match = rootByElement.get(child as HTMLElement);
+      if (match) {
+        if (index >= boundaryOffset) {
+          return { blockId: match.id, offset: 0 };
+        }
+        lastSeenRoot = match;
+      }
+    }
+  }
+
+  if (lastSeenRoot) {
+    return {
+      blockId: lastSeenRoot.id,
+      offset: lastSeenRoot.element.textContent?.length || 0,
+    };
+  }
+
+  return { blockId: last.id, offset: last.element.textContent?.length || 0 };
+}
+
+function resolveSelectionPoint(
+  editorRoot: HTMLElement,
+  roots: RegisteredBlockRoot[],
+  node: Node,
+  offset: number,
+  rootByElement: Map<HTMLElement, RegisteredBlockRoot>
+): BlockPoint | null {
+  if (node === editorRoot) {
+    return resolveRootBoundaryPoint(editorRoot, roots, offset, rootByElement);
+  }
+
+  const root = findRegisteredRoot(editorRoot, node, rootByElement);
+  if (!root) {
+    return null;
+  }
+
+  return resolveBlockPoint(root, node, offset);
+}
+
 function isForwardSelection(
   anchorRoot: RegisteredBlockRoot,
   focusRoot: RegisteredBlockRoot,
@@ -274,24 +340,35 @@ export function getEditorSelectionRange(
   const rootOrder = new Map<HTMLElement, number>(
     roots.map((root, index) => [root.element, index])
   );
+  const rootById = new Map<string, RegisteredBlockRoot>(
+    roots.map((root) => [root.id, root])
+  );
 
-  const anchorRoot = findRegisteredRoot(editorRoot, selection.anchorNode, rootByElement);
-  const focusRoot = findRegisteredRoot(editorRoot, selection.focusNode, rootByElement);
+  const anchorPoint = resolveSelectionPoint(
+    editorRoot,
+    roots,
+    selection.anchorNode,
+    selection.anchorOffset,
+    rootByElement
+  );
+  const focusPoint = resolveSelectionPoint(
+    editorRoot,
+    roots,
+    selection.focusNode,
+    selection.focusOffset,
+    rootByElement
+  );
+
+  if (!anchorPoint || !focusPoint) {
+    return null;
+  }
+
+  const anchorRoot = rootById.get(anchorPoint.blockId);
+  const focusRoot = rootById.get(focusPoint.blockId);
 
   if (!anchorRoot || !focusRoot) {
     return null;
   }
-
-  const anchorPoint = resolveBlockPoint(
-    anchorRoot,
-    selection.anchorNode,
-    selection.anchorOffset
-  );
-  const focusPoint = resolveBlockPoint(
-    focusRoot,
-    selection.focusNode,
-    selection.focusOffset
-  );
 
   const forward = isForwardSelection(
     anchorRoot,
