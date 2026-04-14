@@ -58,3 +58,14 @@ export type MicroMDEditorProps = {
   style?: EditorStyle;
   theme?: Theme;
 };
+
+export type BlockPoint = {
+  blockId: string;
+  offset: number;
+};
+
+export type BlockRange = {
+  start: BlockPoint;
+  end: BlockPoint;
+  isCollapsed: boolean;
+};

@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 import { MicroMDEditor } from './MicroMDEditor';
+import type { BlockPoint, BlockRange } from './types';
 
 // Mock BlockWrapper to simplify testing
 jest.mock('./BlockWrapper', () => ({
@@ -44,6 +45,15 @@ jest.mock('./BlockWrapper', () => ({
     );
   },
 }));
+
+const samplePoint: BlockPoint = { blockId: 'b1', offset: 2 };
+const sampleRange: BlockRange = {
+  start: samplePoint,
+  end: { blockId: 'b2', offset: 4 },
+  isCollapsed: false,
+};
+
+expect(sampleRange.start.blockId).toBe('b1');
 
 describe('MicroMDEditor', () => {
   const mockOnChange = jest.fn();
