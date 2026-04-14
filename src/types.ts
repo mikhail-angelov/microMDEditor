@@ -69,3 +69,8 @@ export type BlockRange = {
   end: BlockPoint;
   isCollapsed: boolean;
 };
+
+export type ClipboardReplaceResult = {
+  blocks: Block[];
+  caret: BlockPoint;
+};

@@ -1,4 +1,6 @@
 import { getSelectionOffsets, restoreSelectionOffsets } from './selection';
+import { serializeBlockRange, replaceBlockRange } from './clipboard';
+import type { BlockRange } from './types';
 
 describe('selection helpers', () => {
   beforeEach(() => {
@@ -190,5 +192,40 @@ describe('selection helpers', () => {
     
     // Restore original
     document.createRange = originalCreateRange;
+  });
+
+  it('serializes a multi-block range with partial first and last blocks', () => {
+    const blocks = [
+      { id: 'b1', type: 'paragraph', raw: 'Hello world' },
+      { id: 'b2', type: 'paragraph', raw: 'Second line' },
+      { id: 'b3', type: 'paragraph', raw: 'Tail end' },
+    ];
+    const range: BlockRange = {
+      start: { blockId: 'b1', offset: 6 },
+      end: { blockId: 'b3', offset: 4 },
+      isCollapsed: false,
+    };
+
+    const serialized = serializeBlockRange(blocks, range);
+    expect(serialized).toBe('world\nSecond line\nTail');
+  });
+
+  it('replaces a multi-block range and returns a collapsed caret target', () => {
+    const blocks = [
+      { id: 'b1', type: 'paragraph', raw: 'Hello world' },
+      { id: 'b2', type: 'paragraph', raw: 'Second line' },
+      { id: 'b3', type: 'paragraph', raw: 'Tail end' },
+    ];
+    const range: BlockRange = {
+      start: { blockId: 'b1', offset: 6 },
+      end: { blockId: 'b3', offset: 4 },
+      isCollapsed: false,
+    };
+
+    const result = replaceBlockRange(blocks, range, 'inserted');
+
+    expect(result.blocks.map((block) => block.raw)).toEqual(['Hello inserted end']);
+    expect(result.caret.blockId).toBe(result.blocks[0].id);
+    expect(result.caret.offset).toBe('Hello inserted'.length);
   });
 });
