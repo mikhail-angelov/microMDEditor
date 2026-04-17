@@ -88,8 +88,8 @@ The editor shows **syntax markers** with reduced opacity while rendering styled 
             <MicroMDEditor
               initialMarkdown={markdown}
               onChange={setMarkdown}
-              className="demo-editor"
-              theme={theme}
+              // className="demo-editor"
+              // theme={theme}
             />
           </div>
         </section>
