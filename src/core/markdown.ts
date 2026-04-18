@@ -31,11 +31,22 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
       continue;
     }
 
-    const start = i;
+    const chunkLines: string[] = [];
     while (i < lines.length && lines[i] !== "") {
+      // Special handling for poll format: split on lines starting with # or -
+      // This ensures proper block separation for poll format
+      const line = lines[i];
+      if ((line.startsWith('#') || /^[-*]\s/.test(line)) && chunkLines.length > 0) {
+        // Start a new chunk
+        chunks.push(chunkLines.join("\n"));
+        chunkLines.length = 0;
+      }
+      chunkLines.push(line);
       i++;
     }
-    chunks.push(lines.slice(start, i).join("\n"));
+    if (chunkLines.length > 0) {
+      chunks.push(chunkLines.join("\n"));
+    }
   }
 
   return chunks.map((chunk) => {
