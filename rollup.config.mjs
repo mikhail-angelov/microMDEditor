@@ -4,25 +4,8 @@ import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 
 const reactExternals = ['react', 'react-dom'];
-const preactExternals = ['preact/compat', 'preact/jsx-runtime'];
+const preactExternals = ['preact', 'preact/hooks'];
 const isWatchMode = process.argv.includes('-w') || process.argv.includes('--watch');
-
-function reactToPreact() {
-  return {
-    name: 'react-to-preact',
-    resolveId(source) {
-      if (source === 'react' || source === 'react-dom') {
-        return { id: 'preact/compat', external: true };
-      }
-
-      if (source === 'react/jsx-runtime') {
-        return { id: 'preact/jsx-runtime', external: true };
-      }
-
-      return null;
-    },
-  };
-}
 
 function createPlugins({ declaration, declarationDir, declarationMap, extraPlugins = [] }) {
   return [
@@ -86,7 +69,7 @@ export default [
       declaration: true,
       declarationDir: 'dist',
       declarationMap: false,
-      extraPlugins: [reactToPreact()],
+      extraPlugins: [],
     }).concat(exitAfterBuild()),
     external: preactExternals,
   },

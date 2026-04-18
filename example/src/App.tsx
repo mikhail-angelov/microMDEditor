@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { MicroMDEditor } from 'micro-md-editor';
+import { useState } from 'preact/hooks';
+import { MicroMDEditor } from 'micro-md-editor/preact';
 // import {MicroMDEditor2} from '../../src/MicroMDEditor2'
 import './App.css';
 
@@ -8,7 +8,7 @@ type Theme = 'light' | 'dark' | 'auto';
 function App() {
   const [markdown, setMarkdown] = useState(`# Welcome to Micro MD Editor
 
-This is a **Notion-style Markdown editor** built with React. Edit markdown directly while seeing styled content!
+This is a **Notion-style Markdown editor** built with Preact. Edit markdown directly while seeing styled content!
 
 ## Features
 
@@ -129,7 +129,7 @@ The editor shows **syntax markers** with reduced opacity while rendering styled 
             <li><strong>Decoration Layer</strong>: Shows formatted text (bold, italic, etc.) - read-only</li>
             <li><strong>Editable Layer</strong>: Transparent text with visible cursor - captures input</li>
           </ul>
-          <p>React controls block structure, browser handles text editing. No forced re-renders during typing!</p>
+          <p>Preact controls block structure, browser handles text editing. No forced re-renders during typing!</p>
         </section>
       </main>
 
