@@ -164,6 +164,72 @@ describe("MicroMDEditor shell", () => {
   });
 });
 
+describe("code fence Enter handling", () => {
+  it("inserts a newline inside the code fence and keeps the block intact", () => {
+    const onChange = jest.fn();
+    const { container } = render(
+      <MicroMDEditor
+        initialMarkdown={"```\nline one\nline two\n```"}
+        onChange={onChange}
+      />
+    );
+
+    const root = container.querySelector('[contenteditable="true"]') as HTMLElement;
+    // There must be exactly one block — the code fence
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].getAttribute("data-block-type")).toBe("code-fence");
+
+    const fenceBlock = root.children[0] as HTMLElement;
+    const textNode = fenceBlock.firstChild as Text;
+
+    // Place cursor after "```\nline one\n" (offset 13)
+    const sel = window.getSelection()!;
+    const range = document.createRange();
+    range.setStart(textNode, 13);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    // Press Enter
+    fenceBlock.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+    );
+
+    // Still one block — no split
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].getAttribute("data-block-type")).toBe("code-fence");
+
+    // Newline inserted at position 13
+    expect(onChange).toHaveBeenLastCalledWith("```\nline one\n\nline two\n```");
+  });
+
+  it("does not let browser split the code fence div on Enter", () => {
+    const { container } = render(
+      <MicroMDEditor initialMarkdown={"```\ncode here\n```"} />
+    );
+
+    const root = container.querySelector('[contenteditable="true"]') as HTMLElement;
+    const fenceBlock = root.children[0] as HTMLElement;
+    const textNode = fenceBlock.firstChild as Text;
+
+    const sel = window.getSelection()!;
+    const range = document.createRange();
+    range.setStart(textNode, 4); // after "```\n"
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const event = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    fenceBlock.dispatchEvent(event);
+
+    // event.preventDefault() must have been called — browser default suppressed
+    expect(event.defaultPrevented).toBe(true);
+    // The block is still a single code fence
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].getAttribute("data-block-type")).toBe("code-fence");
+  });
+});
+
 describe("EditorCore teardown", () => {
   it("preserves unrelated host siblings when destroyed", () => {
     const host = document.createElement("div");

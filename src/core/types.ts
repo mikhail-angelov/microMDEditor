@@ -20,7 +20,7 @@ export type Block = {
   };
 };
 
-export type RenderableBlock = Pick<Block, "id" | "type" | "raw">;
+export type RenderableBlock = Pick<Block, "id" | "type" | "raw" | "meta">;
 
 export type BlockPoint = {
   blockId: string;

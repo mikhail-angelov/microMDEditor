@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MicroMDEditor } from 'micro-md-editor';
+// import {MicroMDEditor2} from '../../src/MicroMDEditor2'
 import './App.css';
 
 type Theme = 'light' | 'dark' | 'auto';

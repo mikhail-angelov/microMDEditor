@@ -60,13 +60,17 @@ describe("parseMarkdownToBlocks", () => {
     expect(serializeBlocksToMarkdown(blocks)).toBe(markdown);
   });
 
-  it("generates deterministic ids per parse call", () => {
+  it("generates unique ids within a parse call, and different ids across calls", () => {
     const markdown = "# Title\n\nparagraph\n\n- item";
 
     const first = parseMarkdownToBlocks(markdown);
     const second = parseMarkdownToBlocks(markdown);
 
-    expect(first.map((block) => block.id)).toEqual(["block-0", "block-1", "block-2"]);
-    expect(second.map((block) => block.id)).toEqual(["block-0", "block-1", "block-2"]);
+    // All IDs within a single call are unique
+    expect(new Set(first.map((b) => b.id)).size).toBe(3);
+    expect(new Set(second.map((b) => b.id)).size).toBe(3);
+    // IDs are not reused across calls (prevents collision when pasting)
+    const firstIds = new Set(first.map((b) => b.id));
+    second.forEach((b) => expect(firstIds.has(b.id)).toBe(false));
   });
 });

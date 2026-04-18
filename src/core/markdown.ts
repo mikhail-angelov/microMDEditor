@@ -1,12 +1,11 @@
+import { generateId } from "./id";
 import type { Block } from "./types";
 
 export function parseMarkdownToBlocks(markdown: string): Block[] {
-  let nextId = 0;
-  const genId = () => `block-${nextId++}`;
   const normalized = markdown.replace(/\r\n/g, "\n");
 
   if (normalized.length === 0) {
-    return [{ id: genId(), type: "paragraph", raw: "" }];
+    return [{ id: generateId(), type: "paragraph", raw: "" }];
   }
 
   const lines = normalized.split("\n");
@@ -42,33 +41,33 @@ export function parseMarkdownToBlocks(markdown: string): Block[] {
   return chunks.map((chunk) => {
     if (/^#{1,6}\s/.test(chunk)) {
       const level = chunk.match(/^#+/)?.[0].length ?? 1;
-      return { id: genId(), type: "heading", raw: chunk, meta: { level } };
+      return { id: generateId(), type: "heading", raw: chunk, meta: { level } };
     }
     if (/^-\s\[[ xX]\]\s/.test(chunk)) {
       return {
-        id: genId(),
+        id: generateId(),
         type: "task-list",
         raw: chunk,
         meta: { marker: "-", checked: /^-\s\[[xX]\]/.test(chunk) },
       };
     }
     if (/^[-*]\s/.test(chunk)) {
-      return { id: genId(), type: "unordered-list", raw: chunk, meta: { marker: chunk[0] } };
+      return { id: generateId(), type: "unordered-list", raw: chunk, meta: { marker: chunk[0] } };
     }
     if (/^\d+\.\s/.test(chunk)) {
       const order = Number(chunk.match(/^\d+/)?.[0] ?? "1");
-      return { id: genId(), type: "ordered-list", raw: chunk, meta: { order } };
+      return { id: generateId(), type: "ordered-list", raw: chunk, meta: { order } };
     }
     if (/^>\s/.test(chunk)) {
-      return { id: genId(), type: "blockquote", raw: chunk };
+      return { id: generateId(), type: "blockquote", raw: chunk };
     }
     if (/^```/.test(chunk)) {
-      return { id: genId(), type: "code-fence", raw: chunk };
+      return { id: generateId(), type: "code-fence", raw: chunk };
     }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(chunk.trim())) {
-      return { id: genId(), type: "horizontal-rule", raw: chunk.trim() };
+      return { id: generateId(), type: "horizontal-rule", raw: chunk.trim() };
     }
-    return { id: genId(), type: "paragraph", raw: chunk };
+    return { id: generateId(), type: "paragraph", raw: chunk };
   });
 }
 
